@@ -119,6 +119,63 @@ function peakOverview(a, from, to, cols) {
   for (let c = 0; c < cols; ++c) { const x0 = from + Math.floor(c * per); let x1 = from + Math.floor((c + 1) * per); if (x1 <= x0) x1 = x0 + 1; x1 = Math.min(x1, to); let lo = 0, hi = 0; for (let i = x0; i < x1; ++i) { lo = Math.min(lo, a.l[i], a.r[i]); hi = Math.max(hi, a.l[i], a.r[i]); } mn[c] = lo; mx[c] = hi; }
   return { mn, mx };
 }
+
+// ---------- spectral editing: STFT, Hann window, 75 percent overlap ----------
+const SN = 2048, SH = 512, SWIN = (() => { const w = new Float64Array(SN); for (let i = 0; i < SN; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / SN); return w; })();
+function ifft(re, im) { const n = re.length; for (let i = 0; i < n; ++i) im[i] = -im[i]; fft(re, im); for (let i = 0; i < n; ++i) { re[i] /= n; im[i] = -im[i] / n; } }
+// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, two bins in frequency.
+function maskBins(regions, c, sr, m) {
+  m.fill(0); let any = false; const fe = SN / 2;
+  for (const r of regions) {
+    const tw = clampf((c - r.t0) / fe + .5, 0, 1) * clampf((r.t1 - c) / fe + .5, 0, 1); if (tw <= 0) continue;
+    const kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr, a = Math.max(0, Math.floor(kLo) - 2), b = Math.min(SN / 2, Math.ceil(kHi) + 2);
+    for (let k = a; k <= b; ++k) { const fw = clampf((k - kLo) / 2 + .5, 0, 1) * clampf((kHi - k) / 2 + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
+  }
+  return any;
+}
+function stft(a, s, e, edit) {
+  const L = e - s, outs = [new Float64Array(L), new Float64Array(L)], chans = [a.l, a.r], re = new Float64Array(SN), im = new Float64Array(SN), n = a.frames;
+  const j0 = Math.floor((s - SN) / SH) + 1, j1 = Math.floor((e - 1) / SH);
+  for (let j = j0; j <= j1; ++j) {
+    const st = j * SH, c = st + SN / 2;
+    for (let ch = 0; ch < 2; ++ch) {
+      const x = chans[ch]; for (let i = 0; i < SN; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; }
+      fft(re, im); edit(re, im, c, ch, j); ifft(re, im); const o = outs[ch];
+      for (let i = 0; i < SN; ++i) { const p = st + i - s; if (p >= 0 && p < L) o[p] += re[i] * SWIN[i]; }
+    }
+  }
+  for (let i = 0; i < L; ++i) { a.l[s + i] = outs[0][i] / 1.5; a.r[s + i] = outs[1][i] / 1.5; }
+}
+function regionSpan(regions, a) { let t0 = 1e18, t1 = -1e18; for (const r of regions) { t0 = Math.min(t0, r.t0); t1 = Math.max(t1, r.t1); } return [Math.max(0, Math.floor(t0) - 2 * SN), Math.min(a.frames, Math.ceil(t1) + 2 * SN)]; }
+// mode 'cut': remove what is inside the regions. mode 'amp': change its level by gainDb.
+function spectralEdit(a, regions, mode, gainDb) {
+  if (!regions.length || !a.frames) return; const [s, e] = regionSpan(regions, a); if (e <= s) return;
+  const g = dbToLin(gainDb || 0), m = new Float64Array(SN / 2 + 1); let lastC = null, any = false;
+  stft(a, s, e, (re, im, c, ch) => {
+    if (ch === 0) { lastC = c; any = maskBins(regions, c, a.sr, m); } if (!any) return;
+    for (let k = 0; k <= SN / 2; ++k) { const v = m[k]; if (v <= 0) continue; const gk = mode === 'cut' ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk; if (k > 0 && k < SN / 2) { re[SN - k] *= gk; im[SN - k] *= gk; } }
+  });
+}
+function spectralCopy(a, r) {
+  if (!a.frames) return null; const sr = a.sr, kLo = Math.max(0, Math.floor(r.f0 * SN / sr) - 2), kHi = Math.min(SN / 2, Math.ceil(r.f1 * SN / sr) + 2), nb = kHi - kLo + 1;
+  const j0 = Math.ceil((r.t0 - SN / 4 - SN / 2) / SH), j1 = Math.floor((r.t1 + SN / 4 - SN / 2) / SH), nf = Math.max(1, j1 - j0 + 1), m = new Float64Array(SN / 2 + 1), re = new Float64Array(SN), im = new Float64Array(SN), n = a.frames;
+  const clip = { nf, nb, kLo, sr, fc: Math.sqrt(Math.max(20, r.f0) * r.f1), ch: [0, 1].map(() => ({ re: new Float32Array(nf * nb), im: new Float32Array(nf * nb) })) };
+  for (let f = 0; f < nf; ++f) {
+    const st = (j0 + f) * SH, c = st + SN / 2; maskBins([r], c, sr, m);
+    for (let ch = 0; ch < 2; ++ch) { const x = ch ? a.r : a.l; for (let i = 0; i < SN; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; } fft(re, im); for (let b = 0; b < nb; ++b) { const k = kLo + b; clip.ch[ch].re[f * nb + b] = re[k] * m[k]; clip.ch[ch].im[f * nb + b] = im[k] * m[k]; } }
+  }
+  return clip;
+}
+// Adds the copied piece back, its first frame at atFrame, its middle frequency at destHz.
+function spectralPaste(a, clip, atFrame, destHz) {
+  if (!clip || !a.frames) return false; const sr = a.sr, jt = Math.round((atFrame - SN / 2) / SH), dk = Math.round((destHz - clip.fc) * SN / sr);
+  const s = Math.max(0, jt * SH - 2 * SN), e = Math.min(a.frames, (jt + clip.nf) * SH + 3 * SN); if (e <= s) return false;
+  stft(a, s, e, (re, im, c, ch, j) => {
+    const f = j - jt; if (f < 0 || f >= clip.nf) return; const C = clip.ch[ch], th = 2 * PI * dk * SH * f / SN, cs = Math.cos(th), sn = Math.sin(th);
+    for (let b = 0; b < clip.nb; ++b) { const kk = clip.kLo + b + dk; if (kk < 1 || kk >= SN / 2) continue; const ur = C.re[f * clip.nb + b], ui = C.im[f * clip.nb + b], vr = ur * cs - ui * sn, vi = ur * sn + ui * cs; re[kk] += vr; im[kk] += vi; re[SN - kk] += vr; im[SN - kk] -= vi; }
+  });
+  return true;
+}
 function detectTransients(a, sens) {
   const out = [], hop = 256, frames = Math.floor(a.frames / hop); if (frames < 4) return out; const e = new Float32Array(frames);
   for (let f = 0; f < frames; ++f) { let s = 0; for (let i = 0; i < hop; ++i) { const x = .5 * (a.l[f * hop + i] + a.r[f * hop + i]); s += x * x; } e[f] = Math.sqrt(s / hop); }
@@ -288,6 +345,9 @@ class Editor {
     else if (mode === 2 && this.hasSelection()) { const a = this.selA; this.audio.erase(this.selA, this.selB); this.audio.insert(a, rec); this.selA = a; this.selB = a + rec.frames; }
     else { const at = this.rangeStart(); this.audio.insert(at, rec); this.selA = at; this.selB = at + rec.frames; }
   }
+  spectralEdit(mode, regions, db) { if (!this.audio.frames || !regions.length) return false; this.pushUndo(); spectralEdit(this.audio, regions, mode, db); return true; }
+  spectralCopy(r) { const c = spectralCopy(this.audio, r); if (c) this.sclip = c; return !!c; }
+  spectralPaste(atFrame, destHz) { if (!this.sclip || !this.audio.frames) return false; this.pushUndo(); spectralPaste(this.audio, this.sclip, atFrame, destHz); return true; }
   snapToZero(pos, radius) {
     const n = this.audio.frames; if (n < 2) return pos; pos = Math.min(pos, n - 1); const m = i => .5 * (this.audio.l[i] + this.audio.r[i]);
     for (let d = 0; d <= radius; ++d) { if (pos >= d && pos - d + 1 < n && m(pos - d) * m(pos - d + 1) <= 0) return pos - d; if (pos + d + 1 < n && m(pos + d) * m(pos + d + 1) <= 0) return pos + d; }
@@ -316,6 +376,6 @@ class Recorder {
   captureLast(seconds) { const o = new Audio(this.sr), want = Math.min(this.filled, Math.round(seconds * this.sr)); o.l = new Float32Array(want); o.r = new Float32Array(want); for (let i = 0; i < want; ++i) { const k = (this.w + this.cap - want + i) % this.cap; o.l[i] = this.ring[0][k]; o.r[i] = this.ring[1][k]; } return o; }
 }
 
-const MC = { Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
+const MC = { spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
 if (typeof module !== 'undefined' && module.exports) module.exports = MC; else root.MC = MC;
 })(typeof window !== 'undefined' ? window : globalThis);

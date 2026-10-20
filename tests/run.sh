@@ -4,3 +4,6 @@ set -e
 cd "$(dirname "$0")"
 g++ -std=c++17 -O2 -Wall -Wextra -o /tmp/meowcorder_test test_core.cpp
 /tmp/meowcorder_test
+
+# The spectral editing of the web mockup (STFT based, in docs/mockups/engine.js)
+node ../tools/spectral_test.js

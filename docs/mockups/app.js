@@ -8,10 +8,10 @@ OPS.forEach(o => o.params.forEach(d => { d.choices = d.choices || []; d.log = !d
 const AC = window.AudioContext || window.webkitAudioContext;
 const gridCol = '#2a2d36', dim = '#8d92a0';
 let ctx = null, bus = null, analyser = null, inBus = null, procNode = null, demoSrc = null, micStream = null, micNode = null, playSrc = null;
-let tipOn = true, powerSave = false, showHits = true, showSpec = true;
+let tipOn = true, powerSave = false, showHits = true, showSpec = false;
 const ed = new MC.Editor(OPS), rec = new MC.Recorder();
-const state = { scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
-const opP = OPS.map(o => o.params.map(d => d.def)), recP = { thresh: -40, pre: 200 };
+const state = { tool: 'mouse', sreg: null, amp: 6, brush: 12, bars: 1, click: 1, counting: false, bits: 24, scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
+const opP = OPS.map(o => o.params.map(d => d.def)), recP = { thresh: -40, pre: 200, bpm: 120 };
 
 // ---------- demo sound ----------
 function rngMk(s) { let x = s >>> 0; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
@@ -35,11 +35,11 @@ function fmt(d, v) {
   if (u === 'ms') return a >= 1000 ? (v / 1000).toFixed(2) + ' s' : (a >= 100 ? v.toFixed(0) : v.toFixed(1)) + ' ms';
   if (u === 's') return v.toFixed(2) + ' s'; if (u === 'Hz') return a >= 1000 ? (v / 1000).toFixed(2) + ' kHz' : (a >= 100 ? v.toFixed(0) : v.toFixed(1)) + ' Hz';
   if (u === 'st') return (v > 0 ? '+' : '') + v.toFixed(1) + ' st'; if (u === 'ct') return (v > 0 ? '+' : '') + v.toFixed(0) + ' ct'; if (u === 'dB') return (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
-  if (u === '%') return v.toFixed(0) + '%'; if (u === 'x') return v.toFixed(2) + 'x'; if (u === ':1') return v.toFixed(1) + ':1';
+  if (u === 'bpm') return v.toFixed(0) + ' bpm'; if (u === '%') return v.toFixed(0) + '%'; if (u === 'x') return v.toFixed(2) + 'x'; if (u === ':1') return v.toFixed(1) + ':1';
   if (d.id === 'bits' || d.id === 'stages') return String(Math.round(v)); return v.toFixed(2);
 }
 const toNorm = (d, v) => clamp(d.log ? (Math.log(v) - Math.log(d.lo)) / (Math.log(d.hi) - Math.log(d.lo)) : (v - d.lo) / (d.hi - d.lo), 0, 1);
-const fromNorm = (d, n) => { n = clamp(n, 0, 1); let v = d.log ? Math.exp(Math.log(d.lo) + n * (Math.log(d.hi) - Math.log(d.lo))) : d.lo + n * (d.hi - d.lo); if (d.id === 'bits' || d.id === 'stages') v = Math.round(v); return clamp(v, d.lo, d.hi); };
+const fromNorm = (d, n) => { n = clamp(n, 0, 1); let v = d.log ? Math.exp(Math.log(d.lo) + n * (Math.log(d.hi) - Math.log(d.lo))) : d.lo + n * (d.hi - d.lo); if (d.id === 'bits' || d.id === 'stages' || d.id === 'bpm') v = Math.round(v); return clamp(v, d.lo, d.hi); };
 function parseVal(d, s) { s = String(s).trim().toLowerCase(); const m = s.match(/^(-?[\d.]+)\s*(k?hz|s|ms|%|db|st|ct|x)?$/); if (!m) return null; let v = parseFloat(m[1]); if (isNaN(v)) return null; const u = m[2] || ''; if (u === 'khz') v *= 1000; else if (u === 's' && d.unit === 'ms') v *= 1000; return clamp(v, d.lo, d.hi); }
 const fmtTime = (fr, sr) => { const t = fr / sr, m = Math.floor(t / 60), s = t - m * 60; return (m ? m + ':' + (s < 10 ? '0' : '') : '') + s.toFixed(m ? 2 : 3) + (m ? '' : ' s'); };
 
@@ -114,16 +114,38 @@ async function chooseInput(v) {
 }
 
 // ---------- recording ----------
+let clickTimer = 0, beatT = 0, beatI = 0, countTO = 0;
+function clickAt(t, strong) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = strong ? 1760 : 1175; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.45, t + .002); g.gain.exponentialRampToValueAtTime(.001, t + .06); o.connect(g); g.connect(bus); o.start(t); o.stop(t + .08); }
+function pumpClicks() { while (beatT < ctx.currentTime + .25) { if (state.clickLive || beatI < state.countBeats) clickAt(beatT, beatI % 4 === 0); beatT += 60 / recP.bpm; ++beatI; } }
+function stopClicks() { clearInterval(clickTimer); clickTimer = 0; }
+function startClicks(t0, countBeats) { stopClicks(); beatT = t0; beatI = 0; state.countBeats = countBeats; state.clickLive = state.click === 2; if (state.click > 0) { pumpClicks(); clickTimer = setInterval(pumpClicks, 40); } }
 function armOrRecord() {
   if (!ctx || ctx.state !== 'running') { powerOn(); return; }
+  if (state.counting) { cancelCount(); return; }
   if (rec.isRecording() || rec.isArmed()) { stopRecording(); return; }
-  stopPlay(); rec.arm(state.startMode, recP.thresh, recP.pre); state.recOn = true; syncRec();
+  stopPlay();
+  if (state.startMode === 3) { startCountIn(); return; }
+  rec.arm(state.startMode === 2 ? 2 : 1, recP.thresh, state.startMode === 2 ? recP.pre : 0); state.recOn = true;
+  if (state.click === 2) startClicks(ctx.currentTime + .05, 0); syncRec();
 }
-function stopRecording() {
-  const a = rec.stop(); state.recOn = false; if (a.frames > 0) { a.sr = ed.audio.sr || a.sr; ed.takeRecording(a, state.takeMode); state.fname = 'new recording, not saved'; viewFit(); changed(); }
+function startCountIn() {
+  const beat = 60 / recP.bpm, n = state.bars * 4, t0 = ctx.currentTime + .15, tEnd = t0 + n * beat; state.counting = true; state.recOn = true; state.countT0 = t0; state.countBeat = beat;
+  startClicks(t0, n);
+  countTO = setTimeout(() => { state.counting = false; const late = Math.max(0, (ctx.currentTime - tEnd) * 1000); rec.arm(1, recP.thresh, late); if (state.click !== 2) stopClicks(); syncRec(); }, Math.max(0, (tEnd - ctx.currentTime) * 1000));
   syncRec();
 }
-function syncRec() { const b = $('#bRec'), on = rec.isRecording(); b.classList.toggle('on', on); b.innerHTML = on ? '&#9632; Stop' : (rec.isArmed() ? '&#9632; Armed, waiting' : '&#9679; Record'); $('#recHint').textContent = rec.isArmed() ? 'Waiting for the sound to pass ' + recP.thresh.toFixed(0) + ' dB.' : (on ? 'Recording ' + fmtTime(rec.recordedFrames(), rec.sr) : ''); }
+function cancelCount() { clearTimeout(countTO); stopClicks(); state.counting = false; state.recOn = false; syncRec(); }
+function stopRecording() {
+  stopClicks(); const a = rec.stop(); state.recOn = false; if (a.frames > 0) { a.sr = ed.audio.sr || a.sr; ed.takeRecording(a, state.takeMode); state.fname = 'new recording, not saved'; viewFit(); changed(); }
+  syncRec();
+}
+function syncRec() {
+  const b = $('#bRec'), on = rec.isRecording(), armed = rec.isArmed(); b.classList.toggle('on', on || state.counting);
+  b.innerHTML = state.counting ? '&#9632; Counting in' : (on ? '&#9632; Stop' : (armed ? '&#9632; Armed, waiting' : '&#9679; Record'));
+  let h = ''; if (state.counting && ctx) { const k = clamp(Math.floor((ctx.currentTime - state.countT0) / state.countBeat), 0, state.bars * 4 - 1); h = 'Count-in: bar ' + (Math.floor(k / 4) + 1) + ', beat ' + (k % 4 + 1) + '. Press again to cancel.'; if (ctx.currentTime < state.countT0) h = 'Count-in: get ready.'; }
+  else if (armed) h = 'Waiting for the sound to pass ' + recP.thresh.toFixed(0) + ' dB.'; else if (on) h = 'Recording ' + fmtTime(rec.recordedFrames(), rec.sr);
+  $('#recHint').textContent = h;
+}
 
 // ---------- playback ----------
 function playRange() { const a = ed.hasSelection() ? ed.selA : Math.min(ed.cursor, Math.max(0, ed.audio.frames - 1)), b = ed.hasSelection() ? ed.selB : ed.audio.frames; return [a, b]; }
@@ -164,7 +186,7 @@ function palette(db) { const t = clamp((db + 90) / 90, 0, 1), st = [[0, '#0a0a0c
 const PAL = Array.from({ length: 256 }, (_, i) => palette(-90 + i / 255 * 90));
 let specKey = '', specImg = null;
 function drawSpec() {
-  const c = $('#spec'), { g, w, h } = prep(c), a = ed.audio; g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, w, h); if (!a.frames || !showSpec) return;
+  if (!showSpec) return; const c = $('#spec'), { g, w, h } = prep(c), a = ed.audio; g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, w, h); if (!a.frames || !showSpec) return;
   const key = state.ver + '|' + Math.round(state.viewA) + '|' + Math.round(state.viewB) + '|' + Math.round(w) + '|' + Math.round(h);
   if (key !== specKey) {
     specKey = key; const W = Math.floor(w), H = Math.floor(h), from = Math.floor(state.viewA), to = Math.ceil(state.viewB), N = 1024, hop = Math.max(64, Math.floor((to - from) / W)), sp = MC.spectrogram(a, from, to, N, hop);
@@ -175,6 +197,7 @@ function drawSpec() {
   g.fillStyle = dim; g.font = '10px JetBrains Mono, monospace'; g.textAlign = 'left'; const fMax = a.sr / 2; for (const f of [100, 1000, 10000]) { if (f > fMax) continue; const y = (1 - Math.log(f / 20) / Math.log(fMax / 20)) * (h - 1); g.fillStyle = '#ffffff22'; g.fillRect(0, Math.round(y), w, 1); g.fillStyle = '#c8ccd8'; g.fillText(f >= 1000 ? f / 1000 + 'k' : f, 3, y - 2); }
   if (ed.hasSelection()) { const x0 = frameToX(ed.selA, w), x1 = frameToX(ed.selB, w); g.fillStyle = '#6cc9f522'; g.fillRect(x0, 0, x1 - x0, h); }
   const ph = playheadFrame(); if (ph >= 0) { g.fillStyle = '#FF1383'; g.fillRect(Math.round(frameToX(ph, w)), 0, 2, h); }
+  drawSpecOverlay(g, w, h);
 }
 function drawLive() {
   const c = $('#live'), { g, w, h } = prep(c); g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, w, h); if (!ctx || !rec.ring) { g.fillStyle = dim; g.font = '12px Barlow Condensed, sans-serif'; g.fillText('Input appears here after Start audio', 8, h / 2 + 4); return; }
@@ -221,7 +244,60 @@ function selectOp(i) {
 }
 function buildRec() {
   const h = $('#recK'); h.appendChild(makeKnob({ id: 'thresh', name: 'Threshold', lo: -80, hi: 0, def: -40, unit: 'dB', tip: 'Level that starts a recording when Start is on Threshold.', choice: false, choices: [] }, 'Record', () => recP.thresh, v => { recP.thresh = v; }));
+  h.appendChild(makeKnob({ id: 'bpm', name: 'Tempo', lo: 40, hi: 240, def: 120, unit: 'bpm', tip: 'Tempo of the click for the count-in and for recording with the click on. 4/4.', choice: false, choices: [] }, 'Record', () => recP.bpm, v => { recP.bpm = v; }));
   h.appendChild(makeKnob({ id: 'pre', name: 'Pre-roll', lo: 0, hi: 3000, def: 200, unit: 'ms', tip: 'How much sound from before the start is included in the recording.', choice: false, choices: [] }, 'Record', () => recP.pre, v => { recP.pre = v; }));
+}
+
+// ---------- spectral view and tools ----------
+const specC = $('#spec'), TOOLHINT = { mouse: 'Click for the cursor, drag to select a time range.', select: 'Drag a box over time and frequency. Use Cutter, Amp or Copy on the box from the Spectral menu.', scissors: 'Drag across time: that slice is cut out and the gap closes.', cutter: 'Drag a box: the sound inside it is removed, the length stays.', eraser: 'Paint over what should go. It is removed when you let go.', copy: 'Drag a box to copy that piece, then click with Paste where it should land.', paste: 'Click where the copied piece should go. Left edge is time, height is frequency.', amp: 'Drag a box: it gets the level change set next to the tools.' };
+const TOOLS = [['mouse', 'Mouse'], ['select', 'Selector'], ['scissors', 'Scissors'], ['cutter', 'Cutter'], ['eraser', 'Eraser'], ['copy', 'Copy'], ['paste', 'Paste'], ['amp', 'Amp']];
+function syncSpecView() { $('#spec').hidden = !showSpec; $('#spectools').hidden = !showSpec; }
+function setTool(t) { if (!showSpec) { showSpec = true; saveSet(); state.ver++; } markTool(t); }
+function markTool(t) { state.tool = t; syncSpecView(); $$('#toolSeg button').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); $('#toolHint').textContent = TOOLHINT[t]; specC.style.cursor = t === 'mouse' ? 'default' : (t === 'paste' ? 'copy' : 'crosshair'); }
+$$('#toolSeg button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('#ampdb').addEventListener('change', e => { state.amp = +e.target.value; }); $('#brush').addEventListener('change', e => { state.brush = +e.target.value; });
+const fMaxOf = () => (ed.audio.sr || 48000) / 2;
+const spPt = e => { const r = specC.getBoundingClientRect(); return { x: (e.clientX - r.left) / (r.width || 1) * specC.clientWidth, y: (e.clientY - r.top) / (r.height || 1) * specC.clientHeight }; };
+const hzAtY = y => { const h = specC.clientHeight; return 20 * Math.pow(fMaxOf() / 20, 1 - clamp(y, 0, h - 1) / (h - 1)); };
+const yAtHz = hz => (1 - Math.log(clamp(hz, 20, fMaxOf()) / 20) / Math.log(fMaxOf() / 20)) * (specC.clientHeight - 1);
+const frAtX = x => clamp(xToFrame(x, specC.clientWidth), 0, ed.audio.frames);
+function boxOf(a, b) { const f = [frAtX(a.x), frAtX(b.x)], hz = [hzAtY(a.y), hzAtY(b.y)]; return { t0: Math.min(...f), t1: Math.max(...f), f0: Math.min(...hz), f1: Math.max(...hz) }; }
+function brushRect(p) { const w = specC.clientWidth, fpp = (state.viewB - state.viewA) / w, r = state.brush, c = xToFrame(p.x, w); return { t0: c - r * fpp, t1: c + r * fpp, f0: hzAtY(p.y + r), f1: hzAtY(p.y - r) }; }
+function specDone() { state.sreg = null; changed(); }
+specC.addEventListener('pointerdown', e => {
+  if (!ed.audio.frames) return; specC.setPointerCapture(e.pointerId); hideTip(); const p = spPt(e);
+  state.drag = { spec: true, tool: state.tool, p0: p, p, rects: state.tool === 'eraser' ? [brushRect(p)] : [], f0: frAtX(p.x), moved: false };
+});
+specC.addEventListener('pointermove', e => {
+  const p = spPt(e), d = state.drag;
+  if (state.tool === 'paste') state.pghost = p;
+  if (!d || !d.spec) return; d.p = p;
+  if (d.tool === 'mouse') { if (Math.abs(p.x - d.p0.x) > 3) { d.moved = true; ed.setSelection(d.f0, frAtX(p.x)); syncEdit(); } }
+  else if (d.tool === 'eraser') { const l = d.last || d.p0; if (Math.hypot(p.x - l.x, p.y - l.y) >= state.brush / 2) { d.rects.push(brushRect(p)); d.last = p; } }
+});
+specC.addEventListener('pointerleave', () => { state.pghost = null; });
+specC.addEventListener('pointerup', e => {
+  const d = state.drag; if (!d || !d.spec) return; state.drag = null; const p = spPt(e), tiny = Math.abs(p.x - d.p0.x) < 4 && Math.abs(p.y - d.p0.y) < 4, box = boxOf(d.p0, p);
+  switch (d.tool) {
+    case 'mouse': if (!d.moved) { ed.setCursor(frAtX(p.x)); } syncEdit(); break;
+    case 'select': if (tiny) { state.sreg = null; ed.setCursor(frAtX(p.x)); syncEdit(); } else { state.sreg = box; ed.setSelection(box.t0, box.t1); syncEdit(); } break;
+    case 'scissors': if (!tiny) { stopPlay(); ed.setSelection(box.t0, box.t1); ed.deleteSelection(); specDone(); } break;
+    case 'cutter': if (!tiny) { stopPlay(); ed.spectralEdit('cut', [box]); specDone(); } break;
+    case 'amp': if (!tiny) { stopPlay(); ed.spectralEdit('amp', [box], state.amp); specDone(); } break;
+    case 'eraser': stopPlay(); ed.spectralEdit('cut', d.rects); specDone(); break;
+    case 'copy': if (!tiny && ed.spectralCopy(box)) { state.sreg = box; setTool('paste'); $('#toolHint').textContent = 'Copied. Click where it should land.'; syncEdit(); } break;
+    case 'paste': stopPlay(); if (ed.spectralPaste(frAtX(p.x), hzAtY(p.y))) specDone(); else $('#toolHint').textContent = 'Nothing copied yet. Use Copy first.'; break;
+  }
+});
+specC.addEventListener('wheel', e => { e.preventDefault(); if (e.altKey || e.shiftKey) { const len = state.viewB - state.viewA, d = (e.deltaY + e.deltaX) / 400 * len; state.viewA += d; state.viewB += d; clampView(); state.ver++; } else zoomAt(e.deltaY < 0 ? .8 : 1.25, frAtX(spPt(e).x)); }, { passive: false });
+const fmtHz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + 'k' : Math.round(f) + '';
+function drawBox(g, r, col, fill, label) { const w = specC.clientWidth, x0 = frameToX(r.t0, w), x1 = frameToX(r.t1, w), y0 = yAtHz(r.f1), y1 = yAtHz(r.f0); g.fillStyle = fill; g.fillRect(x0, y0, x1 - x0, y1 - y0); g.strokeStyle = col; g.lineWidth = 1; g.setLineDash([4, 3]); g.strokeRect(x0 + .5, y0 + .5, x1 - x0, y1 - y0); g.setLineDash([]); if (label) { g.fillStyle = col; g.font = '10px JetBrains Mono, monospace'; g.textAlign = 'left'; g.fillText(label, x0 + 3, Math.max(10, y0 - 3)); } }
+function drawSpecOverlay(g, w, h) {
+  const d = state.drag; if (state.sreg) drawBox(g, state.sreg, '#6CC9F5', '#6cc9f522', fmtHz(state.sreg.f0) + ' to ' + fmtHz(state.sreg.f1) + ' Hz');
+  if (d && d.spec) {
+    if (d.tool === 'eraser') d.rects.forEach(r => drawBox(g, r, '#FF1383', '#ff138355', null));
+    else if (['select', 'scissors', 'cutter', 'copy', 'amp'].includes(d.tool)) { const b = boxOf(d.p0, d.p); if (d.tool === 'scissors') { b.f0 = 20; b.f1 = fMaxOf(); } drawBox(g, b, d.tool === 'cutter' || d.tool === 'scissors' ? '#FF1383' : (d.tool === 'amp' ? '#FFD100' : '#6CC9F5'), '#ffffff1c', null); }
+  } else if (state.tool === 'paste' && state.pghost && ed.sclip) { const c = ed.sclip, p = state.pghost, fr = frAtX(p.x), dur = ((c.nf - 1) * MC.SH + MC.SN / 2); const half = (c.nb * c.sr / MC.SN) / 2, hz = hzAtY(p.y); drawBox(g, { t0: fr, t1: fr + dur, f0: Math.max(20, hz - half), f1: hz + half }, '#02EBBA', '#02ebba22', 'paste here'); }
 }
 
 // ---------- pointer on the waveform ----------
@@ -239,11 +315,11 @@ async function openFile(f) {
   if (!a) { try { const c = ctx || new AC(); const d = await c.decodeAudioData(buf.buffer.slice(0)); a = new MC.Audio(d.sampleRate, d.length); d.copyFromChannel(a.l, 0); a.r = d.numberOfChannels > 1 ? (d.copyFromChannel(a.r, 1), a.r) : a.l.slice(); } catch (e) { modal('Open', 'This browser cannot read that file. Try a WAV file.', [['OK', null, 'on']]); return; } }
   stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(); ed.load(a); ed.undoStack = keep; state.fname = f.name; viewFit(); changed();
 }
-$('#bOpen').addEventListener('click', () => $('#file').click()); $('#file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+$('#file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
 const dw = $('#dispwrap'); ['dragenter', 'dragover'].forEach(t => dw.addEventListener(t, e => { e.preventDefault(); dw.classList.add('hot'); })); ['dragleave', 'drop'].forEach(t => dw.addEventListener(t, e => { e.preventDefault(); dw.classList.remove('hot'); }));
 dw.addEventListener('drop', e => openFile(e.dataTransfer.files[0]));
-$('#bSave').addEventListener('click', () => { const bytes = MC.encodeWav(ed.audio, +$('#bits').value), url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })), a = document.createElement('a'); a.href = url; a.download = (state.fname.replace(/[^\w.-]+/g, '_').replace(/_?(not_saved|edited)/g, '') || 'meowcorder') + '.wav'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); state.fname = state.fname.replace(/, not saved$/, ''); syncEdit(); });
-$('#bNew').addEventListener('click', () => { stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(), a = new MC.Audio(ed.audio.sr || 48000); ed.load(a); ed.undoStack = keep; state.fname = 'empty, not saved'; viewFit(); changed(); });
+function saveWav() { const bytes = MC.encodeWav(ed.audio, state.bits), url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })), a = document.createElement('a'); a.href = url; a.download = (state.fname.replace(/[^\w.-]+/g, '_').replace(/_?(not_saved|edited)/g, '') || 'meowcorder') + '.wav'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); state.fname = state.fname.replace(/, not saved$/, ''); syncEdit(); }
+function newSound() { stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(), a = new MC.Audio(ed.audio.sr || 48000); ed.load(a); ed.undoStack = keep; state.fname = 'empty, not saved'; viewFit(); changed(); }
 
 // ---------- buttons ----------
 $('#bStart').addEventListener('click', powerOn); $('#power').addEventListener('click', () => { if (ctx && ctx.state === 'running') { ctx.suspend(); $('#power').classList.remove('on'); $('#overlay').hidden = false; } else powerOn(); });
@@ -259,18 +335,161 @@ act('#bRepeat', () => ed.repeatLast());
 $('#bZin').addEventListener('click', () => zoomAt(.5, (state.viewA + state.viewB) / 2)); $('#bZout').addEventListener('click', () => zoomAt(2, (state.viewA + state.viewB) / 2)); $('#bFit').addEventListener('click', () => { viewFit(); state.ver++; });
 $('#bSel').addEventListener('click', () => { if (ed.hasSelection()) { state.viewA = ed.selA; state.viewB = ed.selB; clampView(); state.ver++; } });
 $('#bApply').addEventListener('click', doOp); $('#bPrev').addEventListener('click', previewOp);
-document.addEventListener('keydown', e => {
-  if (e.target.matches('input, select, textarea') || document.querySelector('.modalbg')) return; const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
-  if (k === ' ') { e.preventDefault(); togglePlay(); } else if (k === 'enter') { e.preventDefault(); armOrRecord(); } else if (k === 'r' && !c) { stopPlay(); if (ed.repeatLast()) changed(); }
-  else if (c && k === 'z') { e.preventDefault(); stopPlay(); e.shiftKey ? ed.redo() : ed.undo(); changed(); } else if (c && k === 'y') { e.preventDefault(); ed.redo(); changed(); }
-  else if (c && k === 'x') { e.preventDefault(); ed.cut(); changed(); } else if (c && k === 'c') { e.preventDefault(); ed.copy(); syncEdit(); } else if (c && k === 'v') { e.preventDefault(); ed.paste(); changed(); }
-  else if (c && k === 'a') { e.preventDefault(); ed.setSelection(0, ed.audio.frames); syncEdit(); } else if (k === 'delete' || k === 'backspace') { e.preventDefault(); ed.deleteSelection(); changed(); }
-});
 
 // ---------- dialogs ----------
-$('#bGuide').addEventListener('click', () => modal('Guide', `<ol><li>Click <b>Start audio</b>. The little graph above the waveform shows the input all the time: Meowcorder is always listening.</li><li><b>Record</b> (or Enter). With Start on <b>Threshold</b> it waits for sound. The <b>Pre-roll</b> adds the sound from just before the start. <b>Grab the last seconds</b> keeps what you already heard.</li><li>Choose what a new take does: <b>Replace</b>, <b>Append</b>, <b>Punch</b> over the selection or <b>Insert</b>.</li><li>Drag on the waveform to select. Click to place the cursor. Wheel zooms, Alt wheel scrolls, double click selects all.</li><li>Pick an operation in <b>Process</b>, set it, <b>Preview</b> it, then <b>Apply</b> (or double click the operation). <b>R</b> repeats the last one on a new selection.</li><li><b>Undo</b> (Ctrl Z) always brings the old sound back.</li></ol><div class="hint">Space plays, Enter records, R repeats, Delete removes the selection.</div>`, [['Close', null, 'on']]));
-$('#bSet').addEventListener('click', () => modal('Settings', `<label class="row"><input type="checkbox" id="sTip" ${tipOn ? 'checked' : ''}> Info bubbles (after 1 second)</label><label class="row"><input type="checkbox" id="sPow" ${powerSave ? 'checked' : ''}> Power saving (slower drawing)</label><label class="row"><input type="checkbox" id="sSpec" ${showSpec ? 'checked' : ''}> Show the spectrogram</label><label class="row"><input type="checkbox" id="sHit" ${showHits ? 'checked' : ''}> Mark hits (orange ticks) on the waveform</label>`, [['Reset window size', () => { setZoom(1); return false; }], ['Close', m => { tipOn = $('#sTip', m).checked; powerSave = $('#sPow', m).checked; showSpec = $('#sSpec', m).checked; showHits = $('#sHit', m).checked; store.set('mc.set', JSON.stringify({ tipOn, powerSave, showSpec, showHits })); state.ver++; changed(); }, 'on']]));
-$('#bAbout').addEventListener('click', () => modal('About & Support', `<p><b>Meowcorder</b> by Studio 87, version 0.1 design mockup.</p><p>Free and open source (AGPL-3.0-or-later). It collects nothing and makes no network calls. The microphone is only used after you choose it and press Record. The button below only opens a link when you click it.</p><p>Nothing leaves this page: recordings stay in memory until you save a file.</p><p><a class="btn" href="https://ko-fi.com/studio87" target="_blank" rel="noopener">Support on Ko-fi</a></p>`, [['Close', null, 'on']]));
+function openGuide() { modal('Guide', `<ol><li>Click <b>Start audio</b>. In the plugin, Meowcorder listens to the mixer channel it sits on. Here, a demo loop stands in for that channel.</li><li><b>Record</b> (Enter) records what comes in. The small arrow next to it chooses how it starts: <b>Now</b>, <b>On input</b> (waits for sound above the threshold, with pre-roll), or after a <b>Count-in</b> (1, 2 or 4 bars of 4/4 with a click you hear, at the tempo you set).</li><li>The same arrow sets what a new take does: <b>Replace</b>, <b>Append</b>, <b>Punch</b> over the selection or <b>Insert</b>. <b>Grab the last seconds</b> keeps what you already heard.</li><li>Drag on the waveform to select, click to place the cursor. Wheel zooms, Alt wheel scrolls, double click selects all.</li><li>All functions are in the menus on top, with their keys next to them. <b>Help, Keyboard shortcuts</b> (?) lists them all.</li><li><b>Spectral, Show the spectral view</b> (Alt+G) opens the picture of the sound with tools: Mouse, Selector, Scissors, Cutter, Eraser, Copy, Paste and Amp. Cut out a cough, a whistle or one note by looking at it.</li><li><b>Process</b> has 24 operations. Pick one, set it, <b>Preview</b>, then <b>Apply</b>. Shift plus a letter applies it straight away. <b>R</b> repeats the last one.</li><li><b>Undo</b> (Ctrl Z) always brings the old sound back.</li></ol>`, [['Close', null, 'on']]); }
+function openSettings() { modal('Settings', `<label class="row"><input type="checkbox" id="sTip" ${tipOn ? 'checked' : ''}> Info bubbles (after 1 second)</label><label class="row"><input type="checkbox" id="sPow" ${powerSave ? 'checked' : ''}> Power saving (slower drawing)</label><label class="row"><input type="checkbox" id="sSpec" ${showSpec ? 'checked' : ''}> Show the spectral view</label><label class="row"><input type="checkbox" id="sHit" ${showHits ? 'checked' : ''}> Mark hits (orange ticks) on the waveform</label>`, [['Reset window size', () => { setZoom(1); return false; }], ['Close', m => { tipOn = $('#sTip', m).checked; powerSave = $('#sPow', m).checked; showSpec = $('#sSpec', m).checked; showHits = $('#sHit', m).checked; syncSpecView(); store.set('mc.set', JSON.stringify({ tipOn, powerSave, showSpec, showHits })); state.ver++; changed(); }, 'on']]); }
+function openAbout() { modal('About & Support', `<p><b>Meowcorder</b> by Studio 87, version 0.1 design mockup.</p><p>Free and open source (AGPL-3.0-or-later). It collects nothing and makes no network calls. The microphone is only used after you choose it and press Record. The button below only opens a link when you click it.</p><p>Nothing leaves this page: recordings stay in memory until you save a file.</p><p><a class="btn" href="https://ko-fi.com/studio87" target="_blank" rel="noopener">Support on Ko-fi</a></p>`, [['Close', null, 'on']]); }
+
+// ---------- menus (the single source for items, shortcuts and key handling) ----------
+function saveSet() { store.set('mc.set', JSON.stringify({ tipOn, powerSave, showSpec, showHits })); }
+function rebuildRec() { $('#recK').innerHTML = ''; buildRec(); }
+function runOp(i) { state.curOp = i; selectOp(i); doOp(); }
+const ED = fn => () => { stopPlay(); fn(); changed(); };
+const OPKEYS = { gain: 'G', normalize: 'N', fadeIn: 'I', fadeOut: 'O', reverse: 'R', invert: 'P', dcRemove: 'D', silence: 'S', mono: 'M', pan: 'B', rate: 'Y', bitcrush: 'K', drive: 'V', eq: 'E', filter: 'F', delay: 'L', chorus: 'H', phaser: 'A', reverb: 'W', compressor: 'C', limiter: 'T', gate: 'U', trimSilence: 'X', loopXfade: 'J' };
+const radio = (l, get, set, k) => ({ l, k, ck: () => get(), f: set });
+const processSubs = () => { const by = {}, order = []; OPS.forEach((o, i) => { if (!by[o.group]) { by[o.group] = []; order.push(o.group); } by[o.group].push({ l: o.name, k: 'Shift+' + OPKEYS[o.id], tip: o.tip, f: () => runOp(i) }); }); return order.map(g => ({ l: g, sub: by[g] })); };
+const MENUS = [
+  { name: 'File', items: [
+    { l: 'New empty sound', k: 'Alt+N', f: newSound },
+    { l: 'Open file...', k: 'Ctrl+O', f: () => $('#file').click() },
+    { l: 'Save as WAV', k: 'Ctrl+S', f: saveWav },
+    { l: 'Save bit depth', sub: [16, 24, 32].map(b => radio(b === 32 ? '32 bit float' : b + ' bit', () => state.bits === b, () => { state.bits = b; })) },
+    '-',
+    { l: 'Audio on or off', k: 'Alt+A', f: () => $('#power').click() },
+    { l: 'Reload the demo loop', f: () => { stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(); ed.load(demo.clone()); ed.undoStack = keep; state.fname = 'demo loop, not saved'; viewFit(); changed(); } } ] },
+  { name: 'Edit', items: [
+    { l: 'Undo', k: 'Ctrl+Z', f: ED(() => ed.undo()), en: () => ed.canUndo() },
+    { l: 'Redo', k: 'Ctrl+Y', also: ['Ctrl+Shift+Z'], f: ED(() => ed.redo()), en: () => ed.canRedo() },
+    '-',
+    { l: 'Cut', k: 'Ctrl+X', f: ED(() => ed.cut()), en: () => ed.hasSelection() },
+    { l: 'Copy', k: 'Ctrl+C', f: () => { ed.copy(); syncEdit(); }, en: () => ed.hasSelection() },
+    { l: 'Paste', k: 'Ctrl+V', f: ED(() => ed.paste()), en: () => ed.clip.frames > 0 },
+    { l: 'Delete selection', k: 'Del', also: ['Backspace'], f: ED(() => ed.deleteSelection()), en: () => ed.hasSelection() },
+    { l: 'Crop to selection', k: 'T', f: ED(() => { ed.cropToSelection(); viewFit(); }), en: () => ed.hasSelection() },
+    '-',
+    { l: 'Repeat last operation', k: 'R', f: ED(() => ed.repeatLast()), en: () => !!ed.last } ] },
+  { name: 'Select', items: [
+    { l: 'All', k: 'Ctrl+A', f: () => { ed.setSelection(0, ed.audio.frames); syncEdit(); } },
+    { l: 'None', k: 'Esc', f: () => { ed.setCursor(ed.cursor); syncEdit(); } },
+    { l: 'From cursor to the end', k: 'Shift+End', f: () => { ed.setSelection(ed.hasSelection() ? ed.selA : ed.cursor, ed.audio.frames); syncEdit(); } },
+    { l: 'From the start to the cursor', k: 'Shift+Home', f: () => { ed.setSelection(0, ed.hasSelection() ? ed.selB : ed.cursor); syncEdit(); } },
+    '-',
+    { l: 'Snap edges to zero crossings', k: 'Z', f: ED(() => { const a = ed.snapToZero(ed.selA, 2000), b = ed.snapToZero(ed.selB, 2000); ed.setSelection(a, b); }), en: () => ed.hasSelection() } ] },
+  { name: 'View', items: [
+    { l: 'Zoom in', k: '+', also: ['='], f: () => zoomAt(.5, (state.viewA + state.viewB) / 2) },
+    { l: 'Zoom out', k: '-', f: () => zoomAt(2, (state.viewA + state.viewB) / 2) },
+    { l: 'Show the whole sound', k: 'F', f: () => { viewFit(); state.ver++; } },
+    { l: 'Zoom to the selection', k: 'S', f: () => { if (ed.hasSelection()) { state.viewA = ed.selA; state.viewB = ed.selB; clampView(); state.ver++; } }, en: () => ed.hasSelection() },
+    '-',
+    { l: 'Hit marks', k: 'Alt+H', ck: () => showHits, f: () => { showHits = !showHits; saveSet(); changed(); } },
+    { l: 'Info bubbles', k: 'Alt+I', ck: () => tipOn, f: () => { tipOn = !tipOn; saveSet(); } },
+    { l: 'Power saving', k: 'Alt+P', ck: () => powerSave, f: () => { powerSave = !powerSave; saveSet(); } },
+    '-',
+    { l: 'Window size', sub: [[75, 1], [100, 2], [125, 3], [150, 4], [200, 5]].map(([pc, n]) => ({ l: pc + '%', k: 'Alt+' + n, ck: () => Math.round(zoom * 100) === pc, f: () => setZoom(pc / 100) })).concat([{ l: 'Back to 100%', k: 'Alt+0', f: () => setZoom(1) }]) } ] },
+  { name: 'Spectral', items: [
+    { l: 'Show the spectral view', k: 'Alt+G', ck: () => showSpec, f: () => { showSpec = !showSpec; saveSet(); syncSpecView(); state.ver++; } },
+    '-',
+    { l: 'Tool', sub: TOOLS.map(([t, n], i) => ({ l: n, k: 'Shift+' + (i + 1), ck: () => state.tool === t, f: () => setTool(t), tip: TOOLHINT[t] })) },
+    { l: 'Amp amount', sub: [-24, -12, -6, -3, 3, 6, 12].map(v => radio((v > 0 ? '+' : '') + v + ' dB', () => state.amp === v, () => { state.amp = v; $('#ampdb').value = String(v); })) },
+    { l: 'Eraser brush', sub: [['Small', 6], ['Medium', 12], ['Large', 24]].map(([n, v]) => radio(n, () => state.brush === v, () => { state.brush = v; $('#brush').value = String(v); })) },
+    '-',
+    { l: 'Cut the box', k: 'Alt+X', f: () => { ed.spectralEdit('cut', [state.sreg]); specDone(); }, en: () => !!state.sreg },
+    { l: 'Amp the box', k: 'Alt+U', f: () => { ed.spectralEdit('amp', [state.sreg], state.amp); specDone(); }, en: () => !!state.sreg },
+    { l: 'Copy the box', k: 'Alt+C', f: () => { ed.spectralCopy(state.sreg); syncEdit(); }, en: () => !!state.sreg },
+    { l: 'Paste at the cursor', k: 'Alt+V', f: () => { const c = ed.sclip; ed.spectralPaste(ed.cursor, c.fc); specDone(); }, en: () => !!ed.sclip },
+    { l: 'Clear the box', f: () => { state.sreg = null; }, en: () => !!state.sreg } ] },
+  { name: 'Play', items: [
+    { l: 'Play or stop', k: 'Space', f: togglePlay },
+    { l: 'Loop', k: 'L', ck: () => state.loop, f: () => $('#bLoop').click() },
+    { l: 'Preview the chosen operation', k: 'P', f: previewOp },
+    '-',
+    { l: 'Cursor to the start', k: 'Home', f: () => { ed.setCursor(0); state.viewA = 0; clampView(); state.ver++; syncEdit(); } },
+    { l: 'Cursor to the end', k: 'End', f: () => { ed.setCursor(ed.audio.frames); syncEdit(); } } ] },
+  { name: 'Record', items: [
+    { l: 'Record or stop', k: 'Enter', f: armOrRecord },
+    { l: 'Grab the last seconds', k: 'G', f: () => $('#bGrab').click() },
+    '-',
+    { l: 'Start', sub: [radio('Now', () => state.startMode === 1, () => { state.startMode = 1; syncSegs(); }, '1'), radio('On input (when sound arrives)', () => state.startMode === 2, () => { state.startMode = 2; syncSegs(); }, '2'), radio('After a count-in', () => state.startMode === 3, () => { state.startMode = 3; syncSegs(); }, '3')] },
+    { l: 'Count-in length', sub: [1, 2, 4].map(n => radio(n + (n === 1 ? ' bar' : ' bars') + ' of 4/4', () => state.bars === n, () => { state.bars = n; })) },
+    { l: 'Tempo', sub: [90, 100, 110, 120, 128, 140, 150, 160, 174].map(v => radio(v + ' bpm', () => Math.round(recP.bpm) === v, () => { recP.bpm = v; rebuildRec(); })) },
+    { l: 'Click', sub: [['Off', 0], ['During the count-in', 1], ['Count-in and while recording', 2]].map(([n, v]) => radio(n, () => state.click === v, () => { state.click = v; })) },
+    '-',
+    { l: 'A new take will', sub: ['Replace the sound', 'Append at the end', 'Punch over the selection', 'Insert at the selection'].map((t, i) => radio(t, () => state.takeMode === i, () => { state.takeMode = i; syncSegs(); }, String(i + 4))) },
+    { l: 'Threshold level', sub: [-70, -60, -50, -40, -30, -20, -10].map(v => radio(v + ' dB', () => Math.round(recP.thresh) === v, () => { recP.thresh = v; rebuildRec(); })) },
+    { l: 'Pre-roll (on input)', sub: [0, 100, 200, 500, 1000, 3000].map(v => radio(v >= 1000 ? v / 1000 + ' s' : v + ' ms', () => Math.round(recP.pre) === v, () => { recP.pre = v; rebuildRec(); })) },
+    { l: 'Use the microphone instead of the mixer channel', k: 'M', f: () => { const v = state.input === 'demo' ? 'mic' : 'demo'; $('#inSel').value = v; chooseInput(v); }, ck: () => state.input === 'mic' }
+  ] },
+  { name: 'Process', items: [{ l: 'Apply the chosen operation', k: 'Ctrl+Enter', f: doOp }, '-'].concat(processSubs()) },
+  { name: 'Help', items: [
+    { l: 'Guide', k: 'F1', f: openGuide },
+    { l: 'Keyboard shortcuts', k: '?', f: openKeys },
+    { l: 'Settings', k: 'Ctrl+,', f: openSettings },
+    '-',
+    { l: 'About & Support', f: openAbout } ] }
+];
+// ---- key table built from the menus ----
+const KEYS = [];
+function parseKey(str) { if (str === '+') return { ctrl: false, alt: false, shift: false, key: '+', letter: false }; const parts = str.split('+'); let key = parts.pop(); if (str.endsWith('++')) { key = '+'; parts.pop(); } const o = { ctrl: parts.includes('Ctrl'), alt: parts.includes('Alt'), shift: parts.includes('Shift') }; const names = { Space: ' ', Del: 'delete', Esc: 'escape', Enter: 'enter', Home: 'home', End: 'end', Backspace: 'backspace', F1: 'f1' }; o.key = (names[key] || key).toLowerCase(); o.letter = /^[a-z]$/.test(o.key); return o; }
+(function reg() { const walk = (items, menu) => items.forEach(it => { if (it === '-') return; if (it.sub) { walk(it.sub, menu); return; } if (it.k) { [it.k].concat(it.also || []).forEach(k => KEYS.push({ p: parseKey(k), it, menu })); } }); MENUS.forEach(m => walk(m.items, m.name)); })();
+function keyMatch(p, e) {
+  const ctrl = e.ctrlKey || e.metaKey; if (p.ctrl !== ctrl || p.alt !== e.altKey) return false;
+  const code = e.code || '', k = (e.key || '').toLowerCase();
+  if (p.letter) return e.shiftKey === p.shift && (code === 'Key' + p.key.toUpperCase() || (k === p.key && !e.altKey));
+  if (/^\d$/.test(p.key)) return (code === 'Digit' + p.key || code === 'Numpad' + p.key || k === p.key) && p.shift === e.shiftKey;
+  if (p.shift && !e.shiftKey) return false;
+  if (p.key === '+') return k === '+' || (k === '=' && true);
+  if (p.key === '=') return k === '=' || k === '+';
+  if (p.key === '-') return k === '-' || k === '_';
+  if (p.key === '?') return k === '?' || (code === 'Slash' && e.shiftKey);
+  return k === p.key;
+}
+// ---- dropdown rendering ----
+let openIdx = -1, activeDD = null, hoverOpened = false; const splitWrap = $('.splitrec'); const menuBar = $('#menubar');
+function ddFor(items) {
+  const dd = document.createElement('div'); dd.className = 'dd'; dd.setAttribute('role', 'menu');
+  items.forEach(it => {
+    if (it === '-') { const s = document.createElement('div'); s.className = 'msep'; dd.appendChild(s); return; }
+    const row = document.createElement('div'); row.className = 'mi'; row.setAttribute('role', 'menuitem'); const en = it.en ? it.en() : true; if (!en) row.classList.add('dis');
+    const ck = document.createElement('span'); ck.className = 'ck'; ck.textContent = it.ck && it.ck() ? '✓' : ''; const lb = document.createElement('span'); lb.textContent = it.l; const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = it.sub ? '▸' : (it.k || '');
+    row.append(ck, lb, kk); if (it.tip) row.dataset.tip = it.tip;
+    if (it.sub) { row.classList.add('has'); row.appendChild(ddFor(it.sub)); }
+    else row.addEventListener('click', e => { e.stopPropagation(); closeMenu(); it.f(); });
+    row.addEventListener('mouseenter', () => { $$('.mi.hi', row.parentNode).forEach(x => x.classList.remove('hi')); row.classList.add('hi'); activeDD = row.parentNode; });
+    dd.appendChild(row);
+  });
+  return dd;
+}
+function openMenu(i) {
+  closeMenu(); openIdx = i; const w = $$('.mn', menuBar)[i]; w.classList.add('open'); const dd = ddFor(MENUS[i].items); w.appendChild(dd); activeDD = dd; hideTip();
+}
+function closeMenu() { $$(':scope > .dd', splitWrap).forEach(d => d.remove()); hoverOpened = false; $$('.mn', menuBar).forEach(w => { w.classList.remove('open'); const d = $('.dd', w); if (d && d.parentNode === w) d.remove(); }); openIdx = -1; activeDD = null; }
+MENUS.forEach((m, i) => { const w = document.createElement('div'); w.className = 'mn'; const b = document.createElement('button'); b.className = 'mt'; b.textContent = m.name; b.setAttribute('aria-haspopup', 'true');
+  b.addEventListener('click', e => { e.stopPropagation(); if (hoverOpened) { hoverOpened = false; return; } openIdx === i ? closeMenu() : openMenu(i); }); b.addEventListener('mouseenter', () => { if (openIdx >= 0 && openIdx !== i && openIdx < MENUS.length) { openMenu(i); hoverOpened = true; } }); w.appendChild(b); menuBar.appendChild(w); });
+menuBar.addEventListener('pointerleave', () => { hoverOpened = false; });
+document.addEventListener('pointerdown', e => { if (openIdx >= 0 && !e.target.closest('.mn') && !e.target.closest('.splitrec')) closeMenu(); });
+$('#bRecOpt').addEventListener('click', e => { e.stopPropagation(); if (openIdx === 99) { closeMenu(); return; } closeMenu(); openIdx = 99; const dd = ddFor(MENUS.find(m => m.name === 'Record').items); splitWrap.appendChild(dd); activeDD = dd; hideTip(); });
+function menuKey(e) {
+  const rows = () => $$(':scope > .mi:not(.dis)', activeDD), cur = () => rows().findIndex(r => r.classList.contains('hi')), setHi = n => { const r = rows(); if (!r.length) return; $$('.mi.hi', activeDD).forEach(x => x.classList.remove('hi')); r[(n + r.length) % r.length].classList.add('hi'); };
+  const k = e.key; if (k === 'Escape') { closeMenu(); return true; }
+  if (k === 'ArrowDown') { setHi(cur() + 1); return true; } if (k === 'ArrowUp') { setHi(cur() < 0 ? -1 : cur() - 1); return true; }
+  const hiRow = rows()[cur()];
+  if (k === 'ArrowRight') { if (hiRow && hiRow.classList.contains('has')) { hiRow.classList.add('show'); activeDD = $(':scope > .dd', hiRow); setHi(0); } else if (openIdx < MENUS.length) openMenu((openIdx + 1) % MENUS.length); return true; }
+  if (k === 'ArrowLeft') { const par = activeDD.parentNode; if (par && par.classList.contains('mi')) { par.classList.remove('show'); activeDD = par.parentNode; } else if (openIdx < MENUS.length) openMenu((openIdx + MENUS.length - 1) % MENUS.length); return true; }
+  if (k === 'Enter' || k === ' ') { if (hiRow) { if (hiRow.classList.contains('has')) { hiRow.classList.add('show'); activeDD = $(':scope > .dd', hiRow); setHi(0); } else hiRow.click(); } return true; }
+  return false;
+}
+document.addEventListener('keydown', e => {
+  if (openIdx >= 0 && menuKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
+  if (e.target.matches && e.target.matches('input, select, textarea')) return;
+  if (document.querySelector('.modalbg')) return;
+  for (const k of KEYS) { if (!keyMatch(k.p, e)) continue; if (k.it.en && !k.it.en()) continue; e.preventDefault(); k.it.f(); return; }
+}, true);
+function openKeys() {
+  let html = '<div class="keytbl">'; MENUS.forEach(m => { const rows = []; const walk = items => items.forEach(it => { if (it === '-') return; if (it.sub) walk(it.sub); else if (it.k) rows.push(`<div class="r"><span>${it.l}</span><span class="kk">${it.k}</span></div>`); }); walk(m.items); if (rows.length) html += `<section><h4>${m.name}</h4>${rows.join('')}</section>`; });
+  html += '</div><div class="hint" style="margin-top:10px">Mouse: drag to select, click for the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll, double click selects all. Double click an operation to apply it.</div>';
+  modal('Keyboard shortcuts', html, [['Close', null, 'on']], m => { m.style.width = 'min(980px, 100%)'; });
+}
 
 // ---------- resize ----------
 let zoom = 1, base = 1; const ZSTEPS = [.75, 1, 1.25, 1.5, 2], DW = 1240; let DH = 800;
@@ -289,15 +508,15 @@ addEventListener('resize', layoutScale);
 let visible = true, last = 0, n = 0; new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe($('#unit'));
 function frame(t) {
   requestAnimationFrame(frame); if (document.hidden || !visible || t - last < (powerSave ? 50 : 16)) return; last = t; ++n;
-  if (rec.ring && state.recOn && !rec.isRecording() && !rec.isArmed()) { state.recOn = false; syncRec(); }
-  if (rec.isRecording() && rec.recordedFrames() / rec.sr > 1200) stopRecording(); if (rec.ring && (rec.isRecording() || rec.isArmed()) && n % 6 === 0) syncRec();
+  if (rec.ring && state.recOn && !state.counting && !rec.isRecording() && !rec.isArmed()) { state.recOn = false; syncRec(); }
+  if (rec.isRecording() && rec.recordedFrames() / rec.sr > 1200) stopRecording(); if (rec.ring && (rec.isRecording() || rec.isArmed() || state.counting) && n % 6 === 0) syncRec();
   if (state.recOn && rec.isRecording() === false && !rec.isArmed()) { /* stopped by the engine */ }
   drawLive(); drawWave(); if (n % 2 === 0 || state.playing) drawSpec(); drawMeter(); if (n % 4 === 0) drawReadout();
 }
 
 // ---------- start ----------
-try { const s = JSON.parse(store.get('mc.set') || '{}'); tipOn = s.tipOn !== false; powerSave = !!s.powerSave; showSpec = s.showSpec !== false; showHits = s.showHits !== false; } catch (e) {}
-buildOps(); buildRec(); selectOp(0); syncSegs(); viewFit(); changed(); syncPlay(); syncRec();
+try { const s = JSON.parse(store.get('mc.set') || '{}'); tipOn = s.tipOn !== false; powerSave = !!s.powerSave; showSpec = s.showSpec === true; showHits = s.showHits !== false; } catch (e) {}
+buildOps(); buildRec(); selectOp(0); syncSegs(); markTool('mouse'); viewFit(); changed(); syncPlay(); syncRec();
 const z0 = parseFloat(store.get('mc.zoom')); zoom = z0 > 0 ? clamp(z0, .4, 3) : 1; layoutScale();
 window.__mc = { ed, rec, state, opP, MC, OPS };
 requestAnimationFrame(frame);

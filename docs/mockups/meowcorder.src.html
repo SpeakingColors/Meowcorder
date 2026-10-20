@@ -43,6 +43,34 @@ button.on.blue { background: #6cc9f522; border-color: var(--blue); }
 .plist { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; background: #0d0e11; border: 1px solid var(--line); border-radius: 4px; max-height: 320px; overflow: auto; box-shadow: 0 14px 30px #000c; }
 .plist button { display: grid; grid-template-columns: 1fr auto; width: 100%; text-align: left; border: 0; border-radius: 0; background: transparent; text-transform: none; font-family: var(--f-num); font-weight: 400; letter-spacing: 0; }
 .plist button:hover, .plist button[aria-current="true"] { background: var(--panel-2); } .plist small { color: var(--ink-dim); }
+.menurow { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.menubar { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+.mn { position: relative; }
+.mn > button.mt { background: transparent; border: 1px solid transparent; padding: 6px 13px; text-transform: none; letter-spacing: .04em; font-size: 16px; font-weight: 600; }
+.mn.open > button.mt, .mn > button.mt:hover { background: var(--panel-2); border-color: var(--line); }
+.dd { position: absolute; top: calc(100% + 2px); left: 0; min-width: 290px; z-index: 60; background: #0d0e11; border: 1px solid #3a3d48; border-radius: 4px; padding: 4px; box-shadow: 0 14px 34px #000d; }
+.dd .dd { top: -5px; left: calc(100% - 2px); display: none; }
+.mi { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 3px; font-size: 14px; letter-spacing: .02em; position: relative; white-space: nowrap; cursor: default; }
+.mi:hover, .mi.hi { background: #23262e; }
+.mi.dis { opacity: .35; pointer-events: none; }
+.mi .ck { color: var(--green); font-size: 13px; text-align: center; }
+.mi .k { font-family: var(--f-num); font-size: 12px; color: var(--ink-dim); letter-spacing: 0; min-width: 24px; text-align: right; }
+.mi.has > .k { color: var(--ink); }
+.mi.has:hover > .dd, .mi.has.show > .dd { display: block; }
+.msep { height: 1px; background: var(--line); margin: 4px 2px; }
+.keytbl { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px 18px; font-size: 13px; }
+.keytbl h4 { margin: 8px 0 3px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+.keytbl div.r { display: flex; justify-content: space-between; gap: 10px; } .keytbl .kk { font-family: var(--f-num); color: var(--ink-dim); font-size: 12px; }
+[hidden] { display: none !important; }
+.splitrec { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 38px; gap: 0; }
+.splitrec .recbtn:first-child { border-radius: 3px 0 0 3px; } .splitrec .recarrow { border-radius: 0 3px 3px 0; margin-left: -1px; padding: 10px 0; }
+.splitrec .dd { top: calc(100% + 2px); left: 0; right: auto; }
+.recbox .knobwrap { width: 78px; }
+.spectools { display: flex; gap: 10px; align-items: center; padding: 5px 8px; border-top: 1px solid var(--line); background: #101216; flex-wrap: wrap; }
+.spectools label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-dim); letter-spacing: .08em; text-transform: uppercase; }
+.spectools select { width: auto; padding: 3px 6px; }
+.seg.tools button { display: flex; align-items: center; gap: 5px; padding: 4px 9px; font-size: 12px; text-transform: none; letter-spacing: .03em; flex: none; }
+.seg.tools svg { width: 15px; height: 15px; }
 .hdr-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .led { width: 10px; height: 10px; border-radius: 50%; background: #3a3d46; display: inline-block; margin-right: 6px; vertical-align: -1px; } .on .led { background: var(--green); box-shadow: 0 0 8px var(--green); }
 
@@ -139,11 +167,11 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
 .recbtn.on { background: var(--pink); color: #fff; animation: pulse 1s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 14px var(--pink); } }
 .recbox .knobs { display: flex; justify-content: space-around; gap: 4px; }
-.recbox .knobwrap { width: 90px; }
+
 .twoc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 #live { height: 46px; border-bottom: 1px solid var(--line); }
 #wave { height: 210px; cursor: text; }
-#spec { height: 130px; border-top: 1px solid var(--line); }
+#spec { height: 200px; touch-action: none; border-top: 1px solid var(--line); }
 .readout { font-family: var(--f-num); font-size: 12px; color: var(--ink-dim); letter-spacing: 0; display: flex; gap: 18px; flex-wrap: wrap; padding: 5px 4px 0; }
 .readout b { color: var(--ink); font-weight: 400; }
 .editbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -174,26 +202,32 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
       </div>
       <div class="hdr-right">
         <button id="power" data-tip="Audio on or off. Browsers need one click before they play sound."><span class="led"></span>Audio</button>
-        <button id="bGuide">Guide</button><button id="bSet">Settings</button><button id="bAbout">About &amp; Support</button>
-        <button id="bZoom" data-tip="Window size, percent of the default. Drag any edge or corner to resize; double click the wood to go back to 100%.">100%</button>
+                <button id="bZoom" data-tip="Window size, percent of the default. Drag any edge or corner to resize; double click the wood to go back to 100%.">100%</button>
       </div>
-      <div class="fbar">
-        <button id="bNew" data-tip="Start with an empty sound. Undo brings the old one back.">New</button>
-        <button id="bOpen" data-tip="Open an audio file. You can also drop a file on the display.">Open</button>
-        <button id="bSave" data-tip="Save the sound as a WAV file. In this web mockup the browser may block the download; in the plugin the sound can also be dragged back into the track.">Save WAV</button>
-        <select id="bits" aria-label="Bit depth" data-tip="Bit depth of the saved file. 32 bit is float, nothing is lost."><option value="16">16 bit</option><option value="24" selected>24 bit</option><option value="32">32 bit float</option></select>
-        <span class="sp"></span>
-        <span class="hint" id="fname">demo loop, not saved</span>
-      </div>
+      <div class="menurow"><nav class="menubar" id="menubar" role="menubar" aria-label="Menus"></nav><span class="hint" id="fname">demo loop, not saved</span></div>
     </header>
+
+    <div class="editbar">
+      <button id="bPlay" class="playbtn" style="width:auto;padding:6px 14px" data-tip="Play from the cursor, or the selection. Space.">&#9654; Play</button>
+      <button id="bLoop" data-tip="Repeat while playing. L.">Loop</button>
+      <span class="sep"></span>
+      <button id="bUndo" data-tip="Undo the last change. Ctrl Z.">Undo</button><button id="bRedo" data-tip="Redo. Ctrl Y.">Redo</button>
+      <span class="sep"></span>
+      <button id="bCut" data-tip="Cut the selection to the clipboard. Ctrl X.">Cut</button><button id="bCopy" data-tip="Copy the selection. Ctrl C.">Copy</button><button id="bPaste" data-tip="Paste at the cursor, or over the start of the selection. Ctrl V.">Paste</button>
+      <button id="bDel" data-tip="Delete the selection and close the gap. Delete.">Delete</button><button id="bCrop" data-tip="Keep only the selection and throw the rest away. T.">Crop</button><button id="bAll" data-tip="Select everything. Ctrl A.">Select all</button><button id="bSnap" data-tip="Move the selection edges to the nearest zero crossing, so cuts do not click.">Snap to zero</button>
+      <span class="sep"></span>
+      <button id="bZin" data-tip="Zoom in on the waveform. + key.">+</button><button id="bZout" data-tip="Zoom out. - key.">-</button><button id="bFit" data-tip="Show the whole sound. F.">Fit</button><button id="bSel" data-tip="Zoom to the selection. S.">To selection</button>
+      <span class="sep"></span>
+      <button id="bRepeat" class="rep" data-tip="Do the last operation again on the current selection. R.">Repeat last: none</button>
+    </div>
 
     <section class="strip">
       <div class="box recbox">
         <h3>Record</h3>
-        <select id="inSel" aria-label="Input" data-tip="Where the sound comes from. In the plugin: the track the plugin sits on, or a mixer slot. Here: a demo loop or your microphone."><option value="demo">Demo: house loop</option><option value="mic">Microphone</option></select>
-        <div class="seg" id="startSeg"><button data-v="1" data-tip="Recording starts the moment you press Record.">Now</button><button data-v="2" data-tip="Press Record to arm. Recording starts when the sound passes the threshold. The pre-roll is included.">Threshold</button></div>
+        <select id="inSel" aria-label="Input" data-tip="Where the sound comes from. In the plugin: the track the plugin sits on, or a mixer slot. Here: a demo loop or your microphone."><option value="demo">Mixer channel (demo loop here)</option><option value="mic">Microphone</option></select>
+        <div class="seg" id="startSeg"><button data-v="1" data-tip="Recording starts the moment you press Record. Key 1.">Now</button><button data-v="2" data-tip="Press Record to arm. Recording starts when the incoming sound passes the threshold; the pre-roll is included. Key 2.">On input</button><button data-v="3" data-tip="Press Record, hear the click for the chosen number of bars (4/4), and recording starts on the next downbeat. Key 3.">Count-in</button></div>
         <div class="knobs" id="recK"></div>
-        <button class="recbtn" id="bRec" data-tip="Record. Press again to stop. Meowcorder is always listening, so the pre-roll can include the sound from just before you pressed.">&#9679; Record</button>
+        <div class="splitrec"><button class="recbtn" id="bRec" data-tip="Record what comes in from the input. Press again to stop. Enter.">&#9679; Record</button><button class="recbtn recarrow" id="bRecOpt" aria-label="Record options" data-tip="Record options: start now, on input or after a count-in; count-in bars, tempo and click; what a new take does; threshold and pre-roll.">&#9662;</button></div>
         <div class="seg" id="takeSeg" data-tip="What happens to a new recording: Replace the whole sound, Append at the end, Punch over the selection, or Insert at the start of the selection."><button data-v="0">Replace</button><button data-v="1">Append</button><button data-v="2">Punch</button><button data-v="3">Insert</button></div>
         <button id="bGrab" data-tip="Keeps the last seconds that were already heard, even though you were not recording. Uses the Pre-roll length (up to 30 seconds).">Grab the last seconds</button>
         <div class="hint" id="recHint"></div>
@@ -201,28 +235,14 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
       <div class="box dispwrap" id="dispwrap">
         <canvas id="live" width="1000" height="46" data-tip="Input, always listening: the last 3 seconds. The pink band is the pre-roll that a recording would include."></canvas>
         <canvas id="wave" width="1000" height="210" data-tip="The sound. Drag to select, click to place the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll. Operations work on the selection, or on everything when nothing is selected."></canvas>
-        <canvas id="spec" width="1000" height="130" data-tip="Spectrogram of what you see above. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level."></canvas>
-        <div class="dropnote" id="dropnote" style="bottom:136px">Drop an audio file here</div>
+        <div class="spectools" id="spectools" hidden><div class="seg tools" id="toolSeg"><button data-tool="mouse" data-tip="Mouse. Click for the cursor, drag to select a time range. Shift+1."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3.500 2l9 6.500-4.200.8 2.400 4.700-1.900 1-2.400-4.700-2.900 2.900z" fill="currentColor" stroke="none"/></svg>Mouse</button><button data-tool="select" data-tip="Selector. Drag a box over time and frequency. The box is what the Cutter, Amp and Copy actions in the Spectral menu use. Shift+2."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.500" y="3.500" width="11" height="9" stroke-dasharray="2 1.500"/></svg>Selector</button><button data-tool="scissors" data-tip="Scissors. Drag across time to cut that slice out of the sound and close the gap. Shift+3."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><path d="M5.200 10.300L12 2.500M10.800 10.300L4 2.500"/></svg>Scissors</button><button data-tool="cutter" data-tip="Cutter. Drag a box and the sound inside it (only those frequencies, only that time) is removed. The length stays the same. Shift+4."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.500" y="3.500" width="11" height="9"/><path d="M2.500 12.500l11-9"/></svg>Cutter</button><button data-tool="eraser" data-tip="Eraser. Paint over what you want gone, for example a cough or a whistle. It is removed when you let go. Brush size next to the tools. Shift+5."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M2.500 10.500l6-7 5 4.200-5.200 6.300H4.800z"/><path d="M6 6.700l5 4.200"/></svg>Eraser</button><button data-tool="copy" data-tip="Copy. Drag a box to copy that piece of sound with its frequencies. Then it switches to Paste. Shift+6."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.500" y="2.500" width="7.500" height="8.500"/><rect x="6" y="5" width="7.500" height="8.500"/></svg>Copy</button><button data-tool="paste" data-tip="Paste. Click where the copied piece should land. Left edge is the time, height is the frequency (it can move up or down). It is mixed in. Shift+7."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3.500" width="10" height="10"/><rect x="6" y="2" width="4" height="3" fill="currentColor"/></svg>Paste</button><button data-tool="amp" data-tip="Amp. Drag a box to make that part louder or quieter by the Amp amount next to the tools. Shift+8."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3.500 13V9.500M8 13V6M12.500 13V2.500" stroke-width="2.200"/></svg>Amp</button></div><label>Amp <select id="ampdb" data-tip="Level change the Amp tool applies to the box."><option value="-24">-24 dB</option><option value="-12">-12 dB</option><option value="-6">-6 dB</option><option value="-3">-3 dB</option><option value="3">+3 dB</option><option value="6" selected>+6 dB</option><option value="12">+12 dB</option></select></label><label>Brush <select id="brush" data-tip="Size of the Eraser brush."><option value="6">Small</option><option value="12" selected>Medium</option><option value="24">Large</option></select></label><span class="hint" id="toolHint"></span></div>
+        <canvas id="spec" width="1000" height="130" data-tip="Spectral view of what you see above. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level. Pick a tool above it to change the sound by looking at it."></canvas>
         <div class="overlay" id="overlay"><div><button id="bStart">Start audio</button><small>Everything is made inside this page. Nothing is sent anywhere.</small></div></div>
       </div>
       <div class="box"><h3>Level</h3><div class="meterbox"><canvas id="meter" width="74" height="250"></canvas></div></div>
     </section>
 
     <div class="readout" id="readout"></div>
-
-    <div class="editbar">
-      <button id="bPlay" class="playbtn" style="width:auto;padding:6px 14px" data-tip="Play from the cursor, or the selection. Space.">&#9654; Play</button>
-      <button id="bLoop" data-tip="Repeat while playing.">Loop</button>
-      <span class="sep"></span>
-      <button id="bUndo" data-tip="Undo the last change. Ctrl Z.">Undo</button><button id="bRedo" data-tip="Redo. Ctrl Y.">Redo</button>
-      <span class="sep"></span>
-      <button id="bCut" data-tip="Cut the selection to the clipboard. Ctrl X.">Cut</button><button id="bCopy" data-tip="Copy the selection. Ctrl C.">Copy</button><button id="bPaste" data-tip="Paste at the cursor, or over the start of the selection. Ctrl V.">Paste</button>
-      <button id="bDel" data-tip="Delete the selection and close the gap. Delete.">Delete</button><button id="bCrop" data-tip="Keep only the selection.">Crop</button><button id="bAll" data-tip="Select everything. Ctrl A.">Select all</button><button id="bSnap" data-tip="Move the selection edges to the nearest zero crossing, so cuts do not click.">Snap to zero</button>
-      <span class="sep"></span>
-      <button id="bZin" data-tip="Zoom in on the waveform.">+</button><button id="bZout" data-tip="Zoom out.">-</button><button id="bFit" data-tip="Show the whole sound.">Fit</button><button id="bSel" data-tip="Zoom to the selection.">To selection</button>
-      <span class="sep"></span>
-      <button id="bRepeat" class="rep" data-tip="Do the last operation again on the current selection. R.">Repeat last: none</button>
-    </div>
 
     <section class="proc">
       <div class="sec"><h3>Process <span id="opHint" class="hint" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h3><div class="oplist" id="oplist"></div></div>

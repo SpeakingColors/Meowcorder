@@ -45,6 +45,34 @@ button.on.blue { background: #6cc9f522; border-color: var(--blue); }
 .plist { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; background: #0d0e11; border: 1px solid var(--line); border-radius: 4px; max-height: 320px; overflow: auto; box-shadow: 0 14px 30px #000c; }
 .plist button { display: grid; grid-template-columns: 1fr auto; width: 100%; text-align: left; border: 0; border-radius: 0; background: transparent; text-transform: none; font-family: var(--f-num); font-weight: 400; letter-spacing: 0; }
 .plist button:hover, .plist button[aria-current="true"] { background: var(--panel-2); } .plist small { color: var(--ink-dim); }
+.menurow { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.menubar { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+.mn { position: relative; }
+.mn > button.mt { background: transparent; border: 1px solid transparent; padding: 6px 13px; text-transform: none; letter-spacing: .04em; font-size: 16px; font-weight: 600; }
+.mn.open > button.mt, .mn > button.mt:hover { background: var(--panel-2); border-color: var(--line); }
+.dd { position: absolute; top: calc(100% + 2px); left: 0; min-width: 290px; z-index: 60; background: #0d0e11; border: 1px solid #3a3d48; border-radius: 4px; padding: 4px; box-shadow: 0 14px 34px #000d; }
+.dd .dd { top: -5px; left: calc(100% - 2px); display: none; }
+.mi { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 3px; font-size: 14px; letter-spacing: .02em; position: relative; white-space: nowrap; cursor: default; }
+.mi:hover, .mi.hi { background: #23262e; }
+.mi.dis { opacity: .35; pointer-events: none; }
+.mi .ck { color: var(--green); font-size: 13px; text-align: center; }
+.mi .k { font-family: var(--f-num); font-size: 12px; color: var(--ink-dim); letter-spacing: 0; min-width: 24px; text-align: right; }
+.mi.has > .k { color: var(--ink); }
+.mi.has:hover > .dd, .mi.has.show > .dd { display: block; }
+.msep { height: 1px; background: var(--line); margin: 4px 2px; }
+.keytbl { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px 18px; font-size: 13px; }
+.keytbl h4 { margin: 8px 0 3px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+.keytbl div.r { display: flex; justify-content: space-between; gap: 10px; } .keytbl .kk { font-family: var(--f-num); color: var(--ink-dim); font-size: 12px; }
+[hidden] { display: none !important; }
+.splitrec { position: relative; display: grid; grid-template-columns: minmax(0,1fr) 38px; gap: 0; }
+.splitrec .recbtn:first-child { border-radius: 3px 0 0 3px; } .splitrec .recarrow { border-radius: 0 3px 3px 0; margin-left: -1px; padding: 10px 0; }
+.splitrec .dd { top: calc(100% + 2px); left: 0; right: auto; }
+.recbox .knobwrap { width: 78px; }
+.spectools { display: flex; gap: 10px; align-items: center; padding: 5px 8px; border-top: 1px solid var(--line); background: #101216; flex-wrap: wrap; }
+.spectools label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-dim); letter-spacing: .08em; text-transform: uppercase; }
+.spectools select { width: auto; padding: 3px 6px; }
+.seg.tools button { display: flex; align-items: center; gap: 5px; padding: 4px 9px; font-size: 12px; text-transform: none; letter-spacing: .03em; flex: none; }
+.seg.tools svg { width: 15px; height: 15px; }
 .hdr-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .led { width: 10px; height: 10px; border-radius: 50%; background: #3a3d46; display: inline-block; margin-right: 6px; vertical-align: -1px; } .on .led { background: var(--green); box-shadow: 0 0 8px var(--green); }
 
@@ -141,11 +169,11 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
 .recbtn.on { background: var(--pink); color: #fff; animation: pulse 1s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 14px var(--pink); } }
 .recbox .knobs { display: flex; justify-content: space-around; gap: 4px; }
-.recbox .knobwrap { width: 90px; }
+
 .twoc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 #live { height: 46px; border-bottom: 1px solid var(--line); }
 #wave { height: 210px; cursor: text; }
-#spec { height: 130px; border-top: 1px solid var(--line); }
+#spec { height: 200px; touch-action: none; border-top: 1px solid var(--line); }
 .readout { font-family: var(--f-num); font-size: 12px; color: var(--ink-dim); letter-spacing: 0; display: flex; gap: 18px; flex-wrap: wrap; padding: 5px 4px 0; }
 .readout b { color: var(--ink); font-weight: 400; }
 .editbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -176,26 +204,32 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
       </div>
       <div class="hdr-right">
         <button id="power" data-tip="Audio on or off. Browsers need one click before they play sound."><span class="led"></span>Audio</button>
-        <button id="bGuide">Guide</button><button id="bSet">Settings</button><button id="bAbout">About &amp; Support</button>
-        <button id="bZoom" data-tip="Window size, percent of the default. Drag any edge or corner to resize; double click the wood to go back to 100%.">100%</button>
+                <button id="bZoom" data-tip="Window size, percent of the default. Drag any edge or corner to resize; double click the wood to go back to 100%.">100%</button>
       </div>
-      <div class="fbar">
-        <button id="bNew" data-tip="Start with an empty sound. Undo brings the old one back.">New</button>
-        <button id="bOpen" data-tip="Open an audio file. You can also drop a file on the display.">Open</button>
-        <button id="bSave" data-tip="Save the sound as a WAV file. In this web mockup the browser may block the download; in the plugin the sound can also be dragged back into the track.">Save WAV</button>
-        <select id="bits" aria-label="Bit depth" data-tip="Bit depth of the saved file. 32 bit is float, nothing is lost."><option value="16">16 bit</option><option value="24" selected>24 bit</option><option value="32">32 bit float</option></select>
-        <span class="sp"></span>
-        <span class="hint" id="fname">demo loop, not saved</span>
-      </div>
+      <div class="menurow"><nav class="menubar" id="menubar" role="menubar" aria-label="Menus"></nav><span class="hint" id="fname">demo loop, not saved</span></div>
     </header>
+
+    <div class="editbar">
+      <button id="bPlay" class="playbtn" style="width:auto;padding:6px 14px" data-tip="Play from the cursor, or the selection. Space.">&#9654; Play</button>
+      <button id="bLoop" data-tip="Repeat while playing. L.">Loop</button>
+      <span class="sep"></span>
+      <button id="bUndo" data-tip="Undo the last change. Ctrl Z.">Undo</button><button id="bRedo" data-tip="Redo. Ctrl Y.">Redo</button>
+      <span class="sep"></span>
+      <button id="bCut" data-tip="Cut the selection to the clipboard. Ctrl X.">Cut</button><button id="bCopy" data-tip="Copy the selection. Ctrl C.">Copy</button><button id="bPaste" data-tip="Paste at the cursor, or over the start of the selection. Ctrl V.">Paste</button>
+      <button id="bDel" data-tip="Delete the selection and close the gap. Delete.">Delete</button><button id="bCrop" data-tip="Keep only the selection and throw the rest away. T.">Crop</button><button id="bAll" data-tip="Select everything. Ctrl A.">Select all</button><button id="bSnap" data-tip="Move the selection edges to the nearest zero crossing, so cuts do not click.">Snap to zero</button>
+      <span class="sep"></span>
+      <button id="bZin" data-tip="Zoom in on the waveform. + key.">+</button><button id="bZout" data-tip="Zoom out. - key.">-</button><button id="bFit" data-tip="Show the whole sound. F.">Fit</button><button id="bSel" data-tip="Zoom to the selection. S.">To selection</button>
+      <span class="sep"></span>
+      <button id="bRepeat" class="rep" data-tip="Do the last operation again on the current selection. R.">Repeat last: none</button>
+    </div>
 
     <section class="strip">
       <div class="box recbox">
         <h3>Record</h3>
-        <select id="inSel" aria-label="Input" data-tip="Where the sound comes from. In the plugin: the track the plugin sits on, or a mixer slot. Here: a demo loop or your microphone."><option value="demo">Demo: house loop</option><option value="mic">Microphone</option></select>
-        <div class="seg" id="startSeg"><button data-v="1" data-tip="Recording starts the moment you press Record.">Now</button><button data-v="2" data-tip="Press Record to arm. Recording starts when the sound passes the threshold. The pre-roll is included.">Threshold</button></div>
+        <select id="inSel" aria-label="Input" data-tip="Where the sound comes from. In the plugin: the track the plugin sits on, or a mixer slot. Here: a demo loop or your microphone."><option value="demo">Mixer channel (demo loop here)</option><option value="mic">Microphone</option></select>
+        <div class="seg" id="startSeg"><button data-v="1" data-tip="Recording starts the moment you press Record. Key 1.">Now</button><button data-v="2" data-tip="Press Record to arm. Recording starts when the incoming sound passes the threshold; the pre-roll is included. Key 2.">On input</button><button data-v="3" data-tip="Press Record, hear the click for the chosen number of bars (4/4), and recording starts on the next downbeat. Key 3.">Count-in</button></div>
         <div class="knobs" id="recK"></div>
-        <button class="recbtn" id="bRec" data-tip="Record. Press again to stop. Meowcorder is always listening, so the pre-roll can include the sound from just before you pressed.">&#9679; Record</button>
+        <div class="splitrec"><button class="recbtn" id="bRec" data-tip="Record what comes in from the input. Press again to stop. Enter.">&#9679; Record</button><button class="recbtn recarrow" id="bRecOpt" aria-label="Record options" data-tip="Record options: start now, on input or after a count-in; count-in bars, tempo and click; what a new take does; threshold and pre-roll.">&#9662;</button></div>
         <div class="seg" id="takeSeg" data-tip="What happens to a new recording: Replace the whole sound, Append at the end, Punch over the selection, or Insert at the start of the selection."><button data-v="0">Replace</button><button data-v="1">Append</button><button data-v="2">Punch</button><button data-v="3">Insert</button></div>
         <button id="bGrab" data-tip="Keeps the last seconds that were already heard, even though you were not recording. Uses the Pre-roll length (up to 30 seconds).">Grab the last seconds</button>
         <div class="hint" id="recHint"></div>
@@ -203,28 +237,14 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
       <div class="box dispwrap" id="dispwrap">
         <canvas id="live" width="1000" height="46" data-tip="Input, always listening: the last 3 seconds. The pink band is the pre-roll that a recording would include."></canvas>
         <canvas id="wave" width="1000" height="210" data-tip="The sound. Drag to select, click to place the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll. Operations work on the selection, or on everything when nothing is selected."></canvas>
-        <canvas id="spec" width="1000" height="130" data-tip="Spectrogram of what you see above. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level."></canvas>
-        <div class="dropnote" id="dropnote" style="bottom:136px">Drop an audio file here</div>
+        <div class="spectools" id="spectools" hidden><div class="seg tools" id="toolSeg"><button data-tool="mouse" data-tip="Mouse. Click for the cursor, drag to select a time range. Shift+1."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3.500 2l9 6.500-4.200.8 2.400 4.700-1.900 1-2.400-4.700-2.900 2.900z" fill="currentColor" stroke="none"/></svg>Mouse</button><button data-tool="select" data-tip="Selector. Drag a box over time and frequency. The box is what the Cutter, Amp and Copy actions in the Spectral menu use. Shift+2."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.500" y="3.500" width="11" height="9" stroke-dasharray="2 1.500"/></svg>Selector</button><button data-tool="scissors" data-tip="Scissors. Drag across time to cut that slice out of the sound and close the gap. Shift+3."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><path d="M5.200 10.300L12 2.500M10.800 10.300L4 2.500"/></svg>Scissors</button><button data-tool="cutter" data-tip="Cutter. Drag a box and the sound inside it (only those frequencies, only that time) is removed. The length stays the same. Shift+4."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.500" y="3.500" width="11" height="9"/><path d="M2.500 12.500l11-9"/></svg>Cutter</button><button data-tool="eraser" data-tip="Eraser. Paint over what you want gone, for example a cough or a whistle. It is removed when you let go. Brush size next to the tools. Shift+5."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M2.500 10.500l6-7 5 4.200-5.200 6.300H4.800z"/><path d="M6 6.700l5 4.200"/></svg>Eraser</button><button data-tool="copy" data-tip="Copy. Drag a box to copy that piece of sound with its frequencies. Then it switches to Paste. Shift+6."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.500" y="2.500" width="7.500" height="8.500"/><rect x="6" y="5" width="7.500" height="8.500"/></svg>Copy</button><button data-tool="paste" data-tip="Paste. Click where the copied piece should land. Left edge is the time, height is the frequency (it can move up or down). It is mixed in. Shift+7."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3.500" width="10" height="10"/><rect x="6" y="2" width="4" height="3" fill="currentColor"/></svg>Paste</button><button data-tool="amp" data-tip="Amp. Drag a box to make that part louder or quieter by the Amp amount next to the tools. Shift+8."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M3.500 13V9.500M8 13V6M12.500 13V2.500" stroke-width="2.200"/></svg>Amp</button></div><label>Amp <select id="ampdb" data-tip="Level change the Amp tool applies to the box."><option value="-24">-24 dB</option><option value="-12">-12 dB</option><option value="-6">-6 dB</option><option value="-3">-3 dB</option><option value="3">+3 dB</option><option value="6" selected>+6 dB</option><option value="12">+12 dB</option></select></label><label>Brush <select id="brush" data-tip="Size of the Eraser brush."><option value="6">Small</option><option value="12" selected>Medium</option><option value="24">Large</option></select></label><span class="hint" id="toolHint"></span></div>
+        <canvas id="spec" width="1000" height="130" data-tip="Spectral view of what you see above. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level. Pick a tool above it to change the sound by looking at it."></canvas>
         <div class="overlay" id="overlay"><div><button id="bStart">Start audio</button><small>Everything is made inside this page. Nothing is sent anywhere.</small></div></div>
       </div>
       <div class="box"><h3>Level</h3><div class="meterbox"><canvas id="meter" width="74" height="250"></canvas></div></div>
     </section>
 
     <div class="readout" id="readout"></div>
-
-    <div class="editbar">
-      <button id="bPlay" class="playbtn" style="width:auto;padding:6px 14px" data-tip="Play from the cursor, or the selection. Space.">&#9654; Play</button>
-      <button id="bLoop" data-tip="Repeat while playing.">Loop</button>
-      <span class="sep"></span>
-      <button id="bUndo" data-tip="Undo the last change. Ctrl Z.">Undo</button><button id="bRedo" data-tip="Redo. Ctrl Y.">Redo</button>
-      <span class="sep"></span>
-      <button id="bCut" data-tip="Cut the selection to the clipboard. Ctrl X.">Cut</button><button id="bCopy" data-tip="Copy the selection. Ctrl C.">Copy</button><button id="bPaste" data-tip="Paste at the cursor, or over the start of the selection. Ctrl V.">Paste</button>
-      <button id="bDel" data-tip="Delete the selection and close the gap. Delete.">Delete</button><button id="bCrop" data-tip="Keep only the selection.">Crop</button><button id="bAll" data-tip="Select everything. Ctrl A.">Select all</button><button id="bSnap" data-tip="Move the selection edges to the nearest zero crossing, so cuts do not click.">Snap to zero</button>
-      <span class="sep"></span>
-      <button id="bZin" data-tip="Zoom in on the waveform.">+</button><button id="bZout" data-tip="Zoom out.">-</button><button id="bFit" data-tip="Show the whole sound.">Fit</button><button id="bSel" data-tip="Zoom to the selection.">To selection</button>
-      <span class="sep"></span>
-      <button id="bRepeat" class="rep" data-tip="Do the last operation again on the current selection. R.">Repeat last: none</button>
-    </div>
 
     <section class="proc">
       <div class="sec"><h3>Process <span id="opHint" class="hint" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h3><div class="oplist" id="oplist"></div></div>
@@ -362,6 +382,63 @@ function peakOverview(a, from, to, cols) {
   const per = (to - from) / cols;
   for (let c = 0; c < cols; ++c) { const x0 = from + Math.floor(c * per); let x1 = from + Math.floor((c + 1) * per); if (x1 <= x0) x1 = x0 + 1; x1 = Math.min(x1, to); let lo = 0, hi = 0; for (let i = x0; i < x1; ++i) { lo = Math.min(lo, a.l[i], a.r[i]); hi = Math.max(hi, a.l[i], a.r[i]); } mn[c] = lo; mx[c] = hi; }
   return { mn, mx };
+}
+
+// ---------- spectral editing: STFT, Hann window, 75 percent overlap ----------
+const SN = 2048, SH = 512, SWIN = (() => { const w = new Float64Array(SN); for (let i = 0; i < SN; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / SN); return w; })();
+function ifft(re, im) { const n = re.length; for (let i = 0; i < n; ++i) im[i] = -im[i]; fft(re, im); for (let i = 0; i < n; ++i) { re[i] /= n; im[i] = -im[i] / n; } }
+// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, two bins in frequency.
+function maskBins(regions, c, sr, m) {
+  m.fill(0); let any = false; const fe = SN / 2;
+  for (const r of regions) {
+    const tw = clampf((c - r.t0) / fe + .5, 0, 1) * clampf((r.t1 - c) / fe + .5, 0, 1); if (tw <= 0) continue;
+    const kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr, a = Math.max(0, Math.floor(kLo) - 2), b = Math.min(SN / 2, Math.ceil(kHi) + 2);
+    for (let k = a; k <= b; ++k) { const fw = clampf((k - kLo) / 2 + .5, 0, 1) * clampf((kHi - k) / 2 + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
+  }
+  return any;
+}
+function stft(a, s, e, edit) {
+  const L = e - s, outs = [new Float64Array(L), new Float64Array(L)], chans = [a.l, a.r], re = new Float64Array(SN), im = new Float64Array(SN), n = a.frames;
+  const j0 = Math.floor((s - SN) / SH) + 1, j1 = Math.floor((e - 1) / SH);
+  for (let j = j0; j <= j1; ++j) {
+    const st = j * SH, c = st + SN / 2;
+    for (let ch = 0; ch < 2; ++ch) {
+      const x = chans[ch]; for (let i = 0; i < SN; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; }
+      fft(re, im); edit(re, im, c, ch, j); ifft(re, im); const o = outs[ch];
+      for (let i = 0; i < SN; ++i) { const p = st + i - s; if (p >= 0 && p < L) o[p] += re[i] * SWIN[i]; }
+    }
+  }
+  for (let i = 0; i < L; ++i) { a.l[s + i] = outs[0][i] / 1.5; a.r[s + i] = outs[1][i] / 1.5; }
+}
+function regionSpan(regions, a) { let t0 = 1e18, t1 = -1e18; for (const r of regions) { t0 = Math.min(t0, r.t0); t1 = Math.max(t1, r.t1); } return [Math.max(0, Math.floor(t0) - 2 * SN), Math.min(a.frames, Math.ceil(t1) + 2 * SN)]; }
+// mode 'cut': remove what is inside the regions. mode 'amp': change its level by gainDb.
+function spectralEdit(a, regions, mode, gainDb) {
+  if (!regions.length || !a.frames) return; const [s, e] = regionSpan(regions, a); if (e <= s) return;
+  const g = dbToLin(gainDb || 0), m = new Float64Array(SN / 2 + 1); let lastC = null, any = false;
+  stft(a, s, e, (re, im, c, ch) => {
+    if (ch === 0) { lastC = c; any = maskBins(regions, c, a.sr, m); } if (!any) return;
+    for (let k = 0; k <= SN / 2; ++k) { const v = m[k]; if (v <= 0) continue; const gk = mode === 'cut' ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk; if (k > 0 && k < SN / 2) { re[SN - k] *= gk; im[SN - k] *= gk; } }
+  });
+}
+function spectralCopy(a, r) {
+  if (!a.frames) return null; const sr = a.sr, kLo = Math.max(0, Math.floor(r.f0 * SN / sr) - 2), kHi = Math.min(SN / 2, Math.ceil(r.f1 * SN / sr) + 2), nb = kHi - kLo + 1;
+  const j0 = Math.ceil((r.t0 - SN / 4 - SN / 2) / SH), j1 = Math.floor((r.t1 + SN / 4 - SN / 2) / SH), nf = Math.max(1, j1 - j0 + 1), m = new Float64Array(SN / 2 + 1), re = new Float64Array(SN), im = new Float64Array(SN), n = a.frames;
+  const clip = { nf, nb, kLo, sr, fc: Math.sqrt(Math.max(20, r.f0) * r.f1), ch: [0, 1].map(() => ({ re: new Float32Array(nf * nb), im: new Float32Array(nf * nb) })) };
+  for (let f = 0; f < nf; ++f) {
+    const st = (j0 + f) * SH, c = st + SN / 2; maskBins([r], c, sr, m);
+    for (let ch = 0; ch < 2; ++ch) { const x = ch ? a.r : a.l; for (let i = 0; i < SN; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; } fft(re, im); for (let b = 0; b < nb; ++b) { const k = kLo + b; clip.ch[ch].re[f * nb + b] = re[k] * m[k]; clip.ch[ch].im[f * nb + b] = im[k] * m[k]; } }
+  }
+  return clip;
+}
+// Adds the copied piece back, its first frame at atFrame, its middle frequency at destHz.
+function spectralPaste(a, clip, atFrame, destHz) {
+  if (!clip || !a.frames) return false; const sr = a.sr, jt = Math.round((atFrame - SN / 2) / SH), dk = Math.round((destHz - clip.fc) * SN / sr);
+  const s = Math.max(0, jt * SH - 2 * SN), e = Math.min(a.frames, (jt + clip.nf) * SH + 3 * SN); if (e <= s) return false;
+  stft(a, s, e, (re, im, c, ch, j) => {
+    const f = j - jt; if (f < 0 || f >= clip.nf) return; const C = clip.ch[ch], th = 2 * PI * dk * SH * f / SN, cs = Math.cos(th), sn = Math.sin(th);
+    for (let b = 0; b < clip.nb; ++b) { const kk = clip.kLo + b + dk; if (kk < 1 || kk >= SN / 2) continue; const ur = C.re[f * clip.nb + b], ui = C.im[f * clip.nb + b], vr = ur * cs - ui * sn, vi = ur * sn + ui * cs; re[kk] += vr; im[kk] += vi; re[SN - kk] += vr; im[SN - kk] -= vi; }
+  });
+  return true;
 }
 function detectTransients(a, sens) {
   const out = [], hop = 256, frames = Math.floor(a.frames / hop); if (frames < 4) return out; const e = new Float32Array(frames);
@@ -532,6 +609,9 @@ class Editor {
     else if (mode === 2 && this.hasSelection()) { const a = this.selA; this.audio.erase(this.selA, this.selB); this.audio.insert(a, rec); this.selA = a; this.selB = a + rec.frames; }
     else { const at = this.rangeStart(); this.audio.insert(at, rec); this.selA = at; this.selB = at + rec.frames; }
   }
+  spectralEdit(mode, regions, db) { if (!this.audio.frames || !regions.length) return false; this.pushUndo(); spectralEdit(this.audio, regions, mode, db); return true; }
+  spectralCopy(r) { const c = spectralCopy(this.audio, r); if (c) this.sclip = c; return !!c; }
+  spectralPaste(atFrame, destHz) { if (!this.sclip || !this.audio.frames) return false; this.pushUndo(); spectralPaste(this.audio, this.sclip, atFrame, destHz); return true; }
   snapToZero(pos, radius) {
     const n = this.audio.frames; if (n < 2) return pos; pos = Math.min(pos, n - 1); const m = i => .5 * (this.audio.l[i] + this.audio.r[i]);
     for (let d = 0; d <= radius; ++d) { if (pos >= d && pos - d + 1 < n && m(pos - d) * m(pos - d + 1) <= 0) return pos - d; if (pos + d + 1 < n && m(pos + d) * m(pos + d + 1) <= 0) return pos + d; }
@@ -560,7 +640,7 @@ class Recorder {
   captureLast(seconds) { const o = new Audio(this.sr), want = Math.min(this.filled, Math.round(seconds * this.sr)); o.l = new Float32Array(want); o.r = new Float32Array(want); for (let i = 0; i < want; ++i) { const k = (this.w + this.cap - want + i) % this.cap; o.l[i] = this.ring[0][k]; o.r[i] = this.ring[1][k]; } return o; }
 }
 
-const MC = { Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
+const MC = { spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
 if (typeof module !== 'undefined' && module.exports) module.exports = MC; else root.MC = MC;
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
@@ -576,10 +656,10 @@ OPS.forEach(o => o.params.forEach(d => { d.choices = d.choices || []; d.log = !d
 const AC = window.AudioContext || window.webkitAudioContext;
 const gridCol = '#2a2d36', dim = '#8d92a0';
 let ctx = null, bus = null, analyser = null, inBus = null, procNode = null, demoSrc = null, micStream = null, micNode = null, playSrc = null;
-let tipOn = true, powerSave = false, showHits = true, showSpec = true;
+let tipOn = true, powerSave = false, showHits = true, showSpec = false;
 const ed = new MC.Editor(OPS), rec = new MC.Recorder();
-const state = { scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
-const opP = OPS.map(o => o.params.map(d => d.def)), recP = { thresh: -40, pre: 200 };
+const state = { tool: 'mouse', sreg: null, amp: 6, brush: 12, bars: 1, click: 1, counting: false, bits: 24, scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
+const opP = OPS.map(o => o.params.map(d => d.def)), recP = { thresh: -40, pre: 200, bpm: 120 };
 
 // ---------- demo sound ----------
 function rngMk(s) { let x = s >>> 0; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
@@ -603,11 +683,11 @@ function fmt(d, v) {
   if (u === 'ms') return a >= 1000 ? (v / 1000).toFixed(2) + ' s' : (a >= 100 ? v.toFixed(0) : v.toFixed(1)) + ' ms';
   if (u === 's') return v.toFixed(2) + ' s'; if (u === 'Hz') return a >= 1000 ? (v / 1000).toFixed(2) + ' kHz' : (a >= 100 ? v.toFixed(0) : v.toFixed(1)) + ' Hz';
   if (u === 'st') return (v > 0 ? '+' : '') + v.toFixed(1) + ' st'; if (u === 'ct') return (v > 0 ? '+' : '') + v.toFixed(0) + ' ct'; if (u === 'dB') return (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
-  if (u === '%') return v.toFixed(0) + '%'; if (u === 'x') return v.toFixed(2) + 'x'; if (u === ':1') return v.toFixed(1) + ':1';
+  if (u === 'bpm') return v.toFixed(0) + ' bpm'; if (u === '%') return v.toFixed(0) + '%'; if (u === 'x') return v.toFixed(2) + 'x'; if (u === ':1') return v.toFixed(1) + ':1';
   if (d.id === 'bits' || d.id === 'stages') return String(Math.round(v)); return v.toFixed(2);
 }
 const toNorm = (d, v) => clamp(d.log ? (Math.log(v) - Math.log(d.lo)) / (Math.log(d.hi) - Math.log(d.lo)) : (v - d.lo) / (d.hi - d.lo), 0, 1);
-const fromNorm = (d, n) => { n = clamp(n, 0, 1); let v = d.log ? Math.exp(Math.log(d.lo) + n * (Math.log(d.hi) - Math.log(d.lo))) : d.lo + n * (d.hi - d.lo); if (d.id === 'bits' || d.id === 'stages') v = Math.round(v); return clamp(v, d.lo, d.hi); };
+const fromNorm = (d, n) => { n = clamp(n, 0, 1); let v = d.log ? Math.exp(Math.log(d.lo) + n * (Math.log(d.hi) - Math.log(d.lo))) : d.lo + n * (d.hi - d.lo); if (d.id === 'bits' || d.id === 'stages' || d.id === 'bpm') v = Math.round(v); return clamp(v, d.lo, d.hi); };
 function parseVal(d, s) { s = String(s).trim().toLowerCase(); const m = s.match(/^(-?[\d.]+)\s*(k?hz|s|ms|%|db|st|ct|x)?$/); if (!m) return null; let v = parseFloat(m[1]); if (isNaN(v)) return null; const u = m[2] || ''; if (u === 'khz') v *= 1000; else if (u === 's' && d.unit === 'ms') v *= 1000; return clamp(v, d.lo, d.hi); }
 const fmtTime = (fr, sr) => { const t = fr / sr, m = Math.floor(t / 60), s = t - m * 60; return (m ? m + ':' + (s < 10 ? '0' : '') : '') + s.toFixed(m ? 2 : 3) + (m ? '' : ' s'); };
 
@@ -682,16 +762,38 @@ async function chooseInput(v) {
 }
 
 // ---------- recording ----------
+let clickTimer = 0, beatT = 0, beatI = 0, countTO = 0;
+function clickAt(t, strong) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = strong ? 1760 : 1175; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.45, t + .002); g.gain.exponentialRampToValueAtTime(.001, t + .06); o.connect(g); g.connect(bus); o.start(t); o.stop(t + .08); }
+function pumpClicks() { while (beatT < ctx.currentTime + .25) { if (state.clickLive || beatI < state.countBeats) clickAt(beatT, beatI % 4 === 0); beatT += 60 / recP.bpm; ++beatI; } }
+function stopClicks() { clearInterval(clickTimer); clickTimer = 0; }
+function startClicks(t0, countBeats) { stopClicks(); beatT = t0; beatI = 0; state.countBeats = countBeats; state.clickLive = state.click === 2; if (state.click > 0) { pumpClicks(); clickTimer = setInterval(pumpClicks, 40); } }
 function armOrRecord() {
   if (!ctx || ctx.state !== 'running') { powerOn(); return; }
+  if (state.counting) { cancelCount(); return; }
   if (rec.isRecording() || rec.isArmed()) { stopRecording(); return; }
-  stopPlay(); rec.arm(state.startMode, recP.thresh, recP.pre); state.recOn = true; syncRec();
+  stopPlay();
+  if (state.startMode === 3) { startCountIn(); return; }
+  rec.arm(state.startMode === 2 ? 2 : 1, recP.thresh, state.startMode === 2 ? recP.pre : 0); state.recOn = true;
+  if (state.click === 2) startClicks(ctx.currentTime + .05, 0); syncRec();
 }
-function stopRecording() {
-  const a = rec.stop(); state.recOn = false; if (a.frames > 0) { a.sr = ed.audio.sr || a.sr; ed.takeRecording(a, state.takeMode); state.fname = 'new recording, not saved'; viewFit(); changed(); }
+function startCountIn() {
+  const beat = 60 / recP.bpm, n = state.bars * 4, t0 = ctx.currentTime + .15, tEnd = t0 + n * beat; state.counting = true; state.recOn = true; state.countT0 = t0; state.countBeat = beat;
+  startClicks(t0, n);
+  countTO = setTimeout(() => { state.counting = false; const late = Math.max(0, (ctx.currentTime - tEnd) * 1000); rec.arm(1, recP.thresh, late); if (state.click !== 2) stopClicks(); syncRec(); }, Math.max(0, (tEnd - ctx.currentTime) * 1000));
   syncRec();
 }
-function syncRec() { const b = $('#bRec'), on = rec.isRecording(); b.classList.toggle('on', on); b.innerHTML = on ? '&#9632; Stop' : (rec.isArmed() ? '&#9632; Armed, waiting' : '&#9679; Record'); $('#recHint').textContent = rec.isArmed() ? 'Waiting for the sound to pass ' + recP.thresh.toFixed(0) + ' dB.' : (on ? 'Recording ' + fmtTime(rec.recordedFrames(), rec.sr) : ''); }
+function cancelCount() { clearTimeout(countTO); stopClicks(); state.counting = false; state.recOn = false; syncRec(); }
+function stopRecording() {
+  stopClicks(); const a = rec.stop(); state.recOn = false; if (a.frames > 0) { a.sr = ed.audio.sr || a.sr; ed.takeRecording(a, state.takeMode); state.fname = 'new recording, not saved'; viewFit(); changed(); }
+  syncRec();
+}
+function syncRec() {
+  const b = $('#bRec'), on = rec.isRecording(), armed = rec.isArmed(); b.classList.toggle('on', on || state.counting);
+  b.innerHTML = state.counting ? '&#9632; Counting in' : (on ? '&#9632; Stop' : (armed ? '&#9632; Armed, waiting' : '&#9679; Record'));
+  let h = ''; if (state.counting && ctx) { const k = clamp(Math.floor((ctx.currentTime - state.countT0) / state.countBeat), 0, state.bars * 4 - 1); h = 'Count-in: bar ' + (Math.floor(k / 4) + 1) + ', beat ' + (k % 4 + 1) + '. Press again to cancel.'; if (ctx.currentTime < state.countT0) h = 'Count-in: get ready.'; }
+  else if (armed) h = 'Waiting for the sound to pass ' + recP.thresh.toFixed(0) + ' dB.'; else if (on) h = 'Recording ' + fmtTime(rec.recordedFrames(), rec.sr);
+  $('#recHint').textContent = h;
+}
 
 // ---------- playback ----------
 function playRange() { const a = ed.hasSelection() ? ed.selA : Math.min(ed.cursor, Math.max(0, ed.audio.frames - 1)), b = ed.hasSelection() ? ed.selB : ed.audio.frames; return [a, b]; }
@@ -732,7 +834,7 @@ function palette(db) { const t = clamp((db + 90) / 90, 0, 1), st = [[0, '#0a0a0c
 const PAL = Array.from({ length: 256 }, (_, i) => palette(-90 + i / 255 * 90));
 let specKey = '', specImg = null;
 function drawSpec() {
-  const c = $('#spec'), { g, w, h } = prep(c), a = ed.audio; g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, w, h); if (!a.frames || !showSpec) return;
+  if (!showSpec) return; const c = $('#spec'), { g, w, h } = prep(c), a = ed.audio; g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, w, h); if (!a.frames || !showSpec) return;
   const key = state.ver + '|' + Math.round(state.viewA) + '|' + Math.round(state.viewB) + '|' + Math.round(w) + '|' + Math.round(h);
   if (key !== specKey) {
     specKey = key; const W = Math.floor(w), H = Math.floor(h), from = Math.floor(state.viewA), to = Math.ceil(state.viewB), N = 1024, hop = Math.max(64, Math.floor((to - from) / W)), sp = MC.spectrogram(a, from, to, N, hop);
@@ -743,6 +845,7 @@ function drawSpec() {
   g.fillStyle = dim; g.font = '10px JetBrains Mono, monospace'; g.textAlign = 'left'; const fMax = a.sr / 2; for (const f of [100, 1000, 10000]) { if (f > fMax) continue; const y = (1 - Math.log(f / 20) / Math.log(fMax / 20)) * (h - 1); g.fillStyle = '#ffffff22'; g.fillRect(0, Math.round(y), w, 1); g.fillStyle = '#c8ccd8'; g.fillText(f >= 1000 ? f / 1000 + 'k' : f, 3, y - 2); }
   if (ed.hasSelection()) { const x0 = frameToX(ed.selA, w), x1 = frameToX(ed.selB, w); g.fillStyle = '#6cc9f522'; g.fillRect(x0, 0, x1 - x0, h); }
   const ph = playheadFrame(); if (ph >= 0) { g.fillStyle = '#FF1383'; g.fillRect(Math.round(frameToX(ph, w)), 0, 2, h); }
+  drawSpecOverlay(g, w, h);
 }
 function drawLive() {
   const c = $('#live'), { g, w, h } = prep(c); g.fillStyle = '#0a0a0c'; g.fillRect(0, 0, w, h); if (!ctx || !rec.ring) { g.fillStyle = dim; g.font = '12px Barlow Condensed, sans-serif'; g.fillText('Input appears here after Start audio', 8, h / 2 + 4); return; }
@@ -789,7 +892,60 @@ function selectOp(i) {
 }
 function buildRec() {
   const h = $('#recK'); h.appendChild(makeKnob({ id: 'thresh', name: 'Threshold', lo: -80, hi: 0, def: -40, unit: 'dB', tip: 'Level that starts a recording when Start is on Threshold.', choice: false, choices: [] }, 'Record', () => recP.thresh, v => { recP.thresh = v; }));
+  h.appendChild(makeKnob({ id: 'bpm', name: 'Tempo', lo: 40, hi: 240, def: 120, unit: 'bpm', tip: 'Tempo of the click for the count-in and for recording with the click on. 4/4.', choice: false, choices: [] }, 'Record', () => recP.bpm, v => { recP.bpm = v; }));
   h.appendChild(makeKnob({ id: 'pre', name: 'Pre-roll', lo: 0, hi: 3000, def: 200, unit: 'ms', tip: 'How much sound from before the start is included in the recording.', choice: false, choices: [] }, 'Record', () => recP.pre, v => { recP.pre = v; }));
+}
+
+// ---------- spectral view and tools ----------
+const specC = $('#spec'), TOOLHINT = { mouse: 'Click for the cursor, drag to select a time range.', select: 'Drag a box over time and frequency. Use Cutter, Amp or Copy on the box from the Spectral menu.', scissors: 'Drag across time: that slice is cut out and the gap closes.', cutter: 'Drag a box: the sound inside it is removed, the length stays.', eraser: 'Paint over what should go. It is removed when you let go.', copy: 'Drag a box to copy that piece, then click with Paste where it should land.', paste: 'Click where the copied piece should go. Left edge is time, height is frequency.', amp: 'Drag a box: it gets the level change set next to the tools.' };
+const TOOLS = [['mouse', 'Mouse'], ['select', 'Selector'], ['scissors', 'Scissors'], ['cutter', 'Cutter'], ['eraser', 'Eraser'], ['copy', 'Copy'], ['paste', 'Paste'], ['amp', 'Amp']];
+function syncSpecView() { $('#spec').hidden = !showSpec; $('#spectools').hidden = !showSpec; }
+function setTool(t) { if (!showSpec) { showSpec = true; saveSet(); state.ver++; } markTool(t); }
+function markTool(t) { state.tool = t; syncSpecView(); $$('#toolSeg button').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); $('#toolHint').textContent = TOOLHINT[t]; specC.style.cursor = t === 'mouse' ? 'default' : (t === 'paste' ? 'copy' : 'crosshair'); }
+$$('#toolSeg button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('#ampdb').addEventListener('change', e => { state.amp = +e.target.value; }); $('#brush').addEventListener('change', e => { state.brush = +e.target.value; });
+const fMaxOf = () => (ed.audio.sr || 48000) / 2;
+const spPt = e => { const r = specC.getBoundingClientRect(); return { x: (e.clientX - r.left) / (r.width || 1) * specC.clientWidth, y: (e.clientY - r.top) / (r.height || 1) * specC.clientHeight }; };
+const hzAtY = y => { const h = specC.clientHeight; return 20 * Math.pow(fMaxOf() / 20, 1 - clamp(y, 0, h - 1) / (h - 1)); };
+const yAtHz = hz => (1 - Math.log(clamp(hz, 20, fMaxOf()) / 20) / Math.log(fMaxOf() / 20)) * (specC.clientHeight - 1);
+const frAtX = x => clamp(xToFrame(x, specC.clientWidth), 0, ed.audio.frames);
+function boxOf(a, b) { const f = [frAtX(a.x), frAtX(b.x)], hz = [hzAtY(a.y), hzAtY(b.y)]; return { t0: Math.min(...f), t1: Math.max(...f), f0: Math.min(...hz), f1: Math.max(...hz) }; }
+function brushRect(p) { const w = specC.clientWidth, fpp = (state.viewB - state.viewA) / w, r = state.brush, c = xToFrame(p.x, w); return { t0: c - r * fpp, t1: c + r * fpp, f0: hzAtY(p.y + r), f1: hzAtY(p.y - r) }; }
+function specDone() { state.sreg = null; changed(); }
+specC.addEventListener('pointerdown', e => {
+  if (!ed.audio.frames) return; specC.setPointerCapture(e.pointerId); hideTip(); const p = spPt(e);
+  state.drag = { spec: true, tool: state.tool, p0: p, p, rects: state.tool === 'eraser' ? [brushRect(p)] : [], f0: frAtX(p.x), moved: false };
+});
+specC.addEventListener('pointermove', e => {
+  const p = spPt(e), d = state.drag;
+  if (state.tool === 'paste') state.pghost = p;
+  if (!d || !d.spec) return; d.p = p;
+  if (d.tool === 'mouse') { if (Math.abs(p.x - d.p0.x) > 3) { d.moved = true; ed.setSelection(d.f0, frAtX(p.x)); syncEdit(); } }
+  else if (d.tool === 'eraser') { const l = d.last || d.p0; if (Math.hypot(p.x - l.x, p.y - l.y) >= state.brush / 2) { d.rects.push(brushRect(p)); d.last = p; } }
+});
+specC.addEventListener('pointerleave', () => { state.pghost = null; });
+specC.addEventListener('pointerup', e => {
+  const d = state.drag; if (!d || !d.spec) return; state.drag = null; const p = spPt(e), tiny = Math.abs(p.x - d.p0.x) < 4 && Math.abs(p.y - d.p0.y) < 4, box = boxOf(d.p0, p);
+  switch (d.tool) {
+    case 'mouse': if (!d.moved) { ed.setCursor(frAtX(p.x)); } syncEdit(); break;
+    case 'select': if (tiny) { state.sreg = null; ed.setCursor(frAtX(p.x)); syncEdit(); } else { state.sreg = box; ed.setSelection(box.t0, box.t1); syncEdit(); } break;
+    case 'scissors': if (!tiny) { stopPlay(); ed.setSelection(box.t0, box.t1); ed.deleteSelection(); specDone(); } break;
+    case 'cutter': if (!tiny) { stopPlay(); ed.spectralEdit('cut', [box]); specDone(); } break;
+    case 'amp': if (!tiny) { stopPlay(); ed.spectralEdit('amp', [box], state.amp); specDone(); } break;
+    case 'eraser': stopPlay(); ed.spectralEdit('cut', d.rects); specDone(); break;
+    case 'copy': if (!tiny && ed.spectralCopy(box)) { state.sreg = box; setTool('paste'); $('#toolHint').textContent = 'Copied. Click where it should land.'; syncEdit(); } break;
+    case 'paste': stopPlay(); if (ed.spectralPaste(frAtX(p.x), hzAtY(p.y))) specDone(); else $('#toolHint').textContent = 'Nothing copied yet. Use Copy first.'; break;
+  }
+});
+specC.addEventListener('wheel', e => { e.preventDefault(); if (e.altKey || e.shiftKey) { const len = state.viewB - state.viewA, d = (e.deltaY + e.deltaX) / 400 * len; state.viewA += d; state.viewB += d; clampView(); state.ver++; } else zoomAt(e.deltaY < 0 ? .8 : 1.25, frAtX(spPt(e).x)); }, { passive: false });
+const fmtHz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + 'k' : Math.round(f) + '';
+function drawBox(g, r, col, fill, label) { const w = specC.clientWidth, x0 = frameToX(r.t0, w), x1 = frameToX(r.t1, w), y0 = yAtHz(r.f1), y1 = yAtHz(r.f0); g.fillStyle = fill; g.fillRect(x0, y0, x1 - x0, y1 - y0); g.strokeStyle = col; g.lineWidth = 1; g.setLineDash([4, 3]); g.strokeRect(x0 + .5, y0 + .5, x1 - x0, y1 - y0); g.setLineDash([]); if (label) { g.fillStyle = col; g.font = '10px JetBrains Mono, monospace'; g.textAlign = 'left'; g.fillText(label, x0 + 3, Math.max(10, y0 - 3)); } }
+function drawSpecOverlay(g, w, h) {
+  const d = state.drag; if (state.sreg) drawBox(g, state.sreg, '#6CC9F5', '#6cc9f522', fmtHz(state.sreg.f0) + ' to ' + fmtHz(state.sreg.f1) + ' Hz');
+  if (d && d.spec) {
+    if (d.tool === 'eraser') d.rects.forEach(r => drawBox(g, r, '#FF1383', '#ff138355', null));
+    else if (['select', 'scissors', 'cutter', 'copy', 'amp'].includes(d.tool)) { const b = boxOf(d.p0, d.p); if (d.tool === 'scissors') { b.f0 = 20; b.f1 = fMaxOf(); } drawBox(g, b, d.tool === 'cutter' || d.tool === 'scissors' ? '#FF1383' : (d.tool === 'amp' ? '#FFD100' : '#6CC9F5'), '#ffffff1c', null); }
+  } else if (state.tool === 'paste' && state.pghost && ed.sclip) { const c = ed.sclip, p = state.pghost, fr = frAtX(p.x), dur = ((c.nf - 1) * MC.SH + MC.SN / 2); const half = (c.nb * c.sr / MC.SN) / 2, hz = hzAtY(p.y); drawBox(g, { t0: fr, t1: fr + dur, f0: Math.max(20, hz - half), f1: hz + half }, '#02EBBA', '#02ebba22', 'paste here'); }
 }
 
 // ---------- pointer on the waveform ----------
@@ -807,11 +963,11 @@ async function openFile(f) {
   if (!a) { try { const c = ctx || new AC(); const d = await c.decodeAudioData(buf.buffer.slice(0)); a = new MC.Audio(d.sampleRate, d.length); d.copyFromChannel(a.l, 0); a.r = d.numberOfChannels > 1 ? (d.copyFromChannel(a.r, 1), a.r) : a.l.slice(); } catch (e) { modal('Open', 'This browser cannot read that file. Try a WAV file.', [['OK', null, 'on']]); return; } }
   stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(); ed.load(a); ed.undoStack = keep; state.fname = f.name; viewFit(); changed();
 }
-$('#bOpen').addEventListener('click', () => $('#file').click()); $('#file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+$('#file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
 const dw = $('#dispwrap'); ['dragenter', 'dragover'].forEach(t => dw.addEventListener(t, e => { e.preventDefault(); dw.classList.add('hot'); })); ['dragleave', 'drop'].forEach(t => dw.addEventListener(t, e => { e.preventDefault(); dw.classList.remove('hot'); }));
 dw.addEventListener('drop', e => openFile(e.dataTransfer.files[0]));
-$('#bSave').addEventListener('click', () => { const bytes = MC.encodeWav(ed.audio, +$('#bits').value), url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })), a = document.createElement('a'); a.href = url; a.download = (state.fname.replace(/[^\w.-]+/g, '_').replace(/_?(not_saved|edited)/g, '') || 'meowcorder') + '.wav'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); state.fname = state.fname.replace(/, not saved$/, ''); syncEdit(); });
-$('#bNew').addEventListener('click', () => { stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(), a = new MC.Audio(ed.audio.sr || 48000); ed.load(a); ed.undoStack = keep; state.fname = 'empty, not saved'; viewFit(); changed(); });
+function saveWav() { const bytes = MC.encodeWav(ed.audio, state.bits), url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })), a = document.createElement('a'); a.href = url; a.download = (state.fname.replace(/[^\w.-]+/g, '_').replace(/_?(not_saved|edited)/g, '') || 'meowcorder') + '.wav'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000); state.fname = state.fname.replace(/, not saved$/, ''); syncEdit(); }
+function newSound() { stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(), a = new MC.Audio(ed.audio.sr || 48000); ed.load(a); ed.undoStack = keep; state.fname = 'empty, not saved'; viewFit(); changed(); }
 
 // ---------- buttons ----------
 $('#bStart').addEventListener('click', powerOn); $('#power').addEventListener('click', () => { if (ctx && ctx.state === 'running') { ctx.suspend(); $('#power').classList.remove('on'); $('#overlay').hidden = false; } else powerOn(); });
@@ -827,18 +983,161 @@ act('#bRepeat', () => ed.repeatLast());
 $('#bZin').addEventListener('click', () => zoomAt(.5, (state.viewA + state.viewB) / 2)); $('#bZout').addEventListener('click', () => zoomAt(2, (state.viewA + state.viewB) / 2)); $('#bFit').addEventListener('click', () => { viewFit(); state.ver++; });
 $('#bSel').addEventListener('click', () => { if (ed.hasSelection()) { state.viewA = ed.selA; state.viewB = ed.selB; clampView(); state.ver++; } });
 $('#bApply').addEventListener('click', doOp); $('#bPrev').addEventListener('click', previewOp);
-document.addEventListener('keydown', e => {
-  if (e.target.matches('input, select, textarea') || document.querySelector('.modalbg')) return; const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
-  if (k === ' ') { e.preventDefault(); togglePlay(); } else if (k === 'enter') { e.preventDefault(); armOrRecord(); } else if (k === 'r' && !c) { stopPlay(); if (ed.repeatLast()) changed(); }
-  else if (c && k === 'z') { e.preventDefault(); stopPlay(); e.shiftKey ? ed.redo() : ed.undo(); changed(); } else if (c && k === 'y') { e.preventDefault(); ed.redo(); changed(); }
-  else if (c && k === 'x') { e.preventDefault(); ed.cut(); changed(); } else if (c && k === 'c') { e.preventDefault(); ed.copy(); syncEdit(); } else if (c && k === 'v') { e.preventDefault(); ed.paste(); changed(); }
-  else if (c && k === 'a') { e.preventDefault(); ed.setSelection(0, ed.audio.frames); syncEdit(); } else if (k === 'delete' || k === 'backspace') { e.preventDefault(); ed.deleteSelection(); changed(); }
-});
 
 // ---------- dialogs ----------
-$('#bGuide').addEventListener('click', () => modal('Guide', `<ol><li>Click <b>Start audio</b>. The little graph above the waveform shows the input all the time: Meowcorder is always listening.</li><li><b>Record</b> (or Enter). With Start on <b>Threshold</b> it waits for sound. The <b>Pre-roll</b> adds the sound from just before the start. <b>Grab the last seconds</b> keeps what you already heard.</li><li>Choose what a new take does: <b>Replace</b>, <b>Append</b>, <b>Punch</b> over the selection or <b>Insert</b>.</li><li>Drag on the waveform to select. Click to place the cursor. Wheel zooms, Alt wheel scrolls, double click selects all.</li><li>Pick an operation in <b>Process</b>, set it, <b>Preview</b> it, then <b>Apply</b> (or double click the operation). <b>R</b> repeats the last one on a new selection.</li><li><b>Undo</b> (Ctrl Z) always brings the old sound back.</li></ol><div class="hint">Space plays, Enter records, R repeats, Delete removes the selection.</div>`, [['Close', null, 'on']]));
-$('#bSet').addEventListener('click', () => modal('Settings', `<label class="row"><input type="checkbox" id="sTip" ${tipOn ? 'checked' : ''}> Info bubbles (after 1 second)</label><label class="row"><input type="checkbox" id="sPow" ${powerSave ? 'checked' : ''}> Power saving (slower drawing)</label><label class="row"><input type="checkbox" id="sSpec" ${showSpec ? 'checked' : ''}> Show the spectrogram</label><label class="row"><input type="checkbox" id="sHit" ${showHits ? 'checked' : ''}> Mark hits (orange ticks) on the waveform</label>`, [['Reset window size', () => { setZoom(1); return false; }], ['Close', m => { tipOn = $('#sTip', m).checked; powerSave = $('#sPow', m).checked; showSpec = $('#sSpec', m).checked; showHits = $('#sHit', m).checked; store.set('mc.set', JSON.stringify({ tipOn, powerSave, showSpec, showHits })); state.ver++; changed(); }, 'on']]));
-$('#bAbout').addEventListener('click', () => modal('About & Support', `<p><b>Meowcorder</b> by Studio 87, version 0.1 design mockup.</p><p>Free and open source (AGPL-3.0-or-later). It collects nothing and makes no network calls. The microphone is only used after you choose it and press Record. The button below only opens a link when you click it.</p><p>Nothing leaves this page: recordings stay in memory until you save a file.</p><p><a class="btn" href="https://ko-fi.com/studio87" target="_blank" rel="noopener">Support on Ko-fi</a></p>`, [['Close', null, 'on']]));
+function openGuide() { modal('Guide', `<ol><li>Click <b>Start audio</b>. In the plugin, Meowcorder listens to the mixer channel it sits on. Here, a demo loop stands in for that channel.</li><li><b>Record</b> (Enter) records what comes in. The small arrow next to it chooses how it starts: <b>Now</b>, <b>On input</b> (waits for sound above the threshold, with pre-roll), or after a <b>Count-in</b> (1, 2 or 4 bars of 4/4 with a click you hear, at the tempo you set).</li><li>The same arrow sets what a new take does: <b>Replace</b>, <b>Append</b>, <b>Punch</b> over the selection or <b>Insert</b>. <b>Grab the last seconds</b> keeps what you already heard.</li><li>Drag on the waveform to select, click to place the cursor. Wheel zooms, Alt wheel scrolls, double click selects all.</li><li>All functions are in the menus on top, with their keys next to them. <b>Help, Keyboard shortcuts</b> (?) lists them all.</li><li><b>Spectral, Show the spectral view</b> (Alt+G) opens the picture of the sound with tools: Mouse, Selector, Scissors, Cutter, Eraser, Copy, Paste and Amp. Cut out a cough, a whistle or one note by looking at it.</li><li><b>Process</b> has 24 operations. Pick one, set it, <b>Preview</b>, then <b>Apply</b>. Shift plus a letter applies it straight away. <b>R</b> repeats the last one.</li><li><b>Undo</b> (Ctrl Z) always brings the old sound back.</li></ol>`, [['Close', null, 'on']]); }
+function openSettings() { modal('Settings', `<label class="row"><input type="checkbox" id="sTip" ${tipOn ? 'checked' : ''}> Info bubbles (after 1 second)</label><label class="row"><input type="checkbox" id="sPow" ${powerSave ? 'checked' : ''}> Power saving (slower drawing)</label><label class="row"><input type="checkbox" id="sSpec" ${showSpec ? 'checked' : ''}> Show the spectral view</label><label class="row"><input type="checkbox" id="sHit" ${showHits ? 'checked' : ''}> Mark hits (orange ticks) on the waveform</label>`, [['Reset window size', () => { setZoom(1); return false; }], ['Close', m => { tipOn = $('#sTip', m).checked; powerSave = $('#sPow', m).checked; showSpec = $('#sSpec', m).checked; showHits = $('#sHit', m).checked; syncSpecView(); store.set('mc.set', JSON.stringify({ tipOn, powerSave, showSpec, showHits })); state.ver++; changed(); }, 'on']]); }
+function openAbout() { modal('About & Support', `<p><b>Meowcorder</b> by Studio 87, version 0.1 design mockup.</p><p>Free and open source (AGPL-3.0-or-later). It collects nothing and makes no network calls. The microphone is only used after you choose it and press Record. The button below only opens a link when you click it.</p><p>Nothing leaves this page: recordings stay in memory until you save a file.</p><p><a class="btn" href="https://ko-fi.com/studio87" target="_blank" rel="noopener">Support on Ko-fi</a></p>`, [['Close', null, 'on']]); }
+
+// ---------- menus (the single source for items, shortcuts and key handling) ----------
+function saveSet() { store.set('mc.set', JSON.stringify({ tipOn, powerSave, showSpec, showHits })); }
+function rebuildRec() { $('#recK').innerHTML = ''; buildRec(); }
+function runOp(i) { state.curOp = i; selectOp(i); doOp(); }
+const ED = fn => () => { stopPlay(); fn(); changed(); };
+const OPKEYS = { gain: 'G', normalize: 'N', fadeIn: 'I', fadeOut: 'O', reverse: 'R', invert: 'P', dcRemove: 'D', silence: 'S', mono: 'M', pan: 'B', rate: 'Y', bitcrush: 'K', drive: 'V', eq: 'E', filter: 'F', delay: 'L', chorus: 'H', phaser: 'A', reverb: 'W', compressor: 'C', limiter: 'T', gate: 'U', trimSilence: 'X', loopXfade: 'J' };
+const radio = (l, get, set, k) => ({ l, k, ck: () => get(), f: set });
+const processSubs = () => { const by = {}, order = []; OPS.forEach((o, i) => { if (!by[o.group]) { by[o.group] = []; order.push(o.group); } by[o.group].push({ l: o.name, k: 'Shift+' + OPKEYS[o.id], tip: o.tip, f: () => runOp(i) }); }); return order.map(g => ({ l: g, sub: by[g] })); };
+const MENUS = [
+  { name: 'File', items: [
+    { l: 'New empty sound', k: 'Alt+N', f: newSound },
+    { l: 'Open file...', k: 'Ctrl+O', f: () => $('#file').click() },
+    { l: 'Save as WAV', k: 'Ctrl+S', f: saveWav },
+    { l: 'Save bit depth', sub: [16, 24, 32].map(b => radio(b === 32 ? '32 bit float' : b + ' bit', () => state.bits === b, () => { state.bits = b; })) },
+    '-',
+    { l: 'Audio on or off', k: 'Alt+A', f: () => $('#power').click() },
+    { l: 'Reload the demo loop', f: () => { stopPlay(); ed.pushUndo(); const keep = ed.undoStack.slice(); ed.load(demo.clone()); ed.undoStack = keep; state.fname = 'demo loop, not saved'; viewFit(); changed(); } } ] },
+  { name: 'Edit', items: [
+    { l: 'Undo', k: 'Ctrl+Z', f: ED(() => ed.undo()), en: () => ed.canUndo() },
+    { l: 'Redo', k: 'Ctrl+Y', also: ['Ctrl+Shift+Z'], f: ED(() => ed.redo()), en: () => ed.canRedo() },
+    '-',
+    { l: 'Cut', k: 'Ctrl+X', f: ED(() => ed.cut()), en: () => ed.hasSelection() },
+    { l: 'Copy', k: 'Ctrl+C', f: () => { ed.copy(); syncEdit(); }, en: () => ed.hasSelection() },
+    { l: 'Paste', k: 'Ctrl+V', f: ED(() => ed.paste()), en: () => ed.clip.frames > 0 },
+    { l: 'Delete selection', k: 'Del', also: ['Backspace'], f: ED(() => ed.deleteSelection()), en: () => ed.hasSelection() },
+    { l: 'Crop to selection', k: 'T', f: ED(() => { ed.cropToSelection(); viewFit(); }), en: () => ed.hasSelection() },
+    '-',
+    { l: 'Repeat last operation', k: 'R', f: ED(() => ed.repeatLast()), en: () => !!ed.last } ] },
+  { name: 'Select', items: [
+    { l: 'All', k: 'Ctrl+A', f: () => { ed.setSelection(0, ed.audio.frames); syncEdit(); } },
+    { l: 'None', k: 'Esc', f: () => { ed.setCursor(ed.cursor); syncEdit(); } },
+    { l: 'From cursor to the end', k: 'Shift+End', f: () => { ed.setSelection(ed.hasSelection() ? ed.selA : ed.cursor, ed.audio.frames); syncEdit(); } },
+    { l: 'From the start to the cursor', k: 'Shift+Home', f: () => { ed.setSelection(0, ed.hasSelection() ? ed.selB : ed.cursor); syncEdit(); } },
+    '-',
+    { l: 'Snap edges to zero crossings', k: 'Z', f: ED(() => { const a = ed.snapToZero(ed.selA, 2000), b = ed.snapToZero(ed.selB, 2000); ed.setSelection(a, b); }), en: () => ed.hasSelection() } ] },
+  { name: 'View', items: [
+    { l: 'Zoom in', k: '+', also: ['='], f: () => zoomAt(.5, (state.viewA + state.viewB) / 2) },
+    { l: 'Zoom out', k: '-', f: () => zoomAt(2, (state.viewA + state.viewB) / 2) },
+    { l: 'Show the whole sound', k: 'F', f: () => { viewFit(); state.ver++; } },
+    { l: 'Zoom to the selection', k: 'S', f: () => { if (ed.hasSelection()) { state.viewA = ed.selA; state.viewB = ed.selB; clampView(); state.ver++; } }, en: () => ed.hasSelection() },
+    '-',
+    { l: 'Hit marks', k: 'Alt+H', ck: () => showHits, f: () => { showHits = !showHits; saveSet(); changed(); } },
+    { l: 'Info bubbles', k: 'Alt+I', ck: () => tipOn, f: () => { tipOn = !tipOn; saveSet(); } },
+    { l: 'Power saving', k: 'Alt+P', ck: () => powerSave, f: () => { powerSave = !powerSave; saveSet(); } },
+    '-',
+    { l: 'Window size', sub: [[75, 1], [100, 2], [125, 3], [150, 4], [200, 5]].map(([pc, n]) => ({ l: pc + '%', k: 'Alt+' + n, ck: () => Math.round(zoom * 100) === pc, f: () => setZoom(pc / 100) })).concat([{ l: 'Back to 100%', k: 'Alt+0', f: () => setZoom(1) }]) } ] },
+  { name: 'Spectral', items: [
+    { l: 'Show the spectral view', k: 'Alt+G', ck: () => showSpec, f: () => { showSpec = !showSpec; saveSet(); syncSpecView(); state.ver++; } },
+    '-',
+    { l: 'Tool', sub: TOOLS.map(([t, n], i) => ({ l: n, k: 'Shift+' + (i + 1), ck: () => state.tool === t, f: () => setTool(t), tip: TOOLHINT[t] })) },
+    { l: 'Amp amount', sub: [-24, -12, -6, -3, 3, 6, 12].map(v => radio((v > 0 ? '+' : '') + v + ' dB', () => state.amp === v, () => { state.amp = v; $('#ampdb').value = String(v); })) },
+    { l: 'Eraser brush', sub: [['Small', 6], ['Medium', 12], ['Large', 24]].map(([n, v]) => radio(n, () => state.brush === v, () => { state.brush = v; $('#brush').value = String(v); })) },
+    '-',
+    { l: 'Cut the box', k: 'Alt+X', f: () => { ed.spectralEdit('cut', [state.sreg]); specDone(); }, en: () => !!state.sreg },
+    { l: 'Amp the box', k: 'Alt+U', f: () => { ed.spectralEdit('amp', [state.sreg], state.amp); specDone(); }, en: () => !!state.sreg },
+    { l: 'Copy the box', k: 'Alt+C', f: () => { ed.spectralCopy(state.sreg); syncEdit(); }, en: () => !!state.sreg },
+    { l: 'Paste at the cursor', k: 'Alt+V', f: () => { const c = ed.sclip; ed.spectralPaste(ed.cursor, c.fc); specDone(); }, en: () => !!ed.sclip },
+    { l: 'Clear the box', f: () => { state.sreg = null; }, en: () => !!state.sreg } ] },
+  { name: 'Play', items: [
+    { l: 'Play or stop', k: 'Space', f: togglePlay },
+    { l: 'Loop', k: 'L', ck: () => state.loop, f: () => $('#bLoop').click() },
+    { l: 'Preview the chosen operation', k: 'P', f: previewOp },
+    '-',
+    { l: 'Cursor to the start', k: 'Home', f: () => { ed.setCursor(0); state.viewA = 0; clampView(); state.ver++; syncEdit(); } },
+    { l: 'Cursor to the end', k: 'End', f: () => { ed.setCursor(ed.audio.frames); syncEdit(); } } ] },
+  { name: 'Record', items: [
+    { l: 'Record or stop', k: 'Enter', f: armOrRecord },
+    { l: 'Grab the last seconds', k: 'G', f: () => $('#bGrab').click() },
+    '-',
+    { l: 'Start', sub: [radio('Now', () => state.startMode === 1, () => { state.startMode = 1; syncSegs(); }, '1'), radio('On input (when sound arrives)', () => state.startMode === 2, () => { state.startMode = 2; syncSegs(); }, '2'), radio('After a count-in', () => state.startMode === 3, () => { state.startMode = 3; syncSegs(); }, '3')] },
+    { l: 'Count-in length', sub: [1, 2, 4].map(n => radio(n + (n === 1 ? ' bar' : ' bars') + ' of 4/4', () => state.bars === n, () => { state.bars = n; })) },
+    { l: 'Tempo', sub: [90, 100, 110, 120, 128, 140, 150, 160, 174].map(v => radio(v + ' bpm', () => Math.round(recP.bpm) === v, () => { recP.bpm = v; rebuildRec(); })) },
+    { l: 'Click', sub: [['Off', 0], ['During the count-in', 1], ['Count-in and while recording', 2]].map(([n, v]) => radio(n, () => state.click === v, () => { state.click = v; })) },
+    '-',
+    { l: 'A new take will', sub: ['Replace the sound', 'Append at the end', 'Punch over the selection', 'Insert at the selection'].map((t, i) => radio(t, () => state.takeMode === i, () => { state.takeMode = i; syncSegs(); }, String(i + 4))) },
+    { l: 'Threshold level', sub: [-70, -60, -50, -40, -30, -20, -10].map(v => radio(v + ' dB', () => Math.round(recP.thresh) === v, () => { recP.thresh = v; rebuildRec(); })) },
+    { l: 'Pre-roll (on input)', sub: [0, 100, 200, 500, 1000, 3000].map(v => radio(v >= 1000 ? v / 1000 + ' s' : v + ' ms', () => Math.round(recP.pre) === v, () => { recP.pre = v; rebuildRec(); })) },
+    { l: 'Use the microphone instead of the mixer channel', k: 'M', f: () => { const v = state.input === 'demo' ? 'mic' : 'demo'; $('#inSel').value = v; chooseInput(v); }, ck: () => state.input === 'mic' }
+  ] },
+  { name: 'Process', items: [{ l: 'Apply the chosen operation', k: 'Ctrl+Enter', f: doOp }, '-'].concat(processSubs()) },
+  { name: 'Help', items: [
+    { l: 'Guide', k: 'F1', f: openGuide },
+    { l: 'Keyboard shortcuts', k: '?', f: openKeys },
+    { l: 'Settings', k: 'Ctrl+,', f: openSettings },
+    '-',
+    { l: 'About & Support', f: openAbout } ] }
+];
+// ---- key table built from the menus ----
+const KEYS = [];
+function parseKey(str) { if (str === '+') return { ctrl: false, alt: false, shift: false, key: '+', letter: false }; const parts = str.split('+'); let key = parts.pop(); if (str.endsWith('++')) { key = '+'; parts.pop(); } const o = { ctrl: parts.includes('Ctrl'), alt: parts.includes('Alt'), shift: parts.includes('Shift') }; const names = { Space: ' ', Del: 'delete', Esc: 'escape', Enter: 'enter', Home: 'home', End: 'end', Backspace: 'backspace', F1: 'f1' }; o.key = (names[key] || key).toLowerCase(); o.letter = /^[a-z]$/.test(o.key); return o; }
+(function reg() { const walk = (items, menu) => items.forEach(it => { if (it === '-') return; if (it.sub) { walk(it.sub, menu); return; } if (it.k) { [it.k].concat(it.also || []).forEach(k => KEYS.push({ p: parseKey(k), it, menu })); } }); MENUS.forEach(m => walk(m.items, m.name)); })();
+function keyMatch(p, e) {
+  const ctrl = e.ctrlKey || e.metaKey; if (p.ctrl !== ctrl || p.alt !== e.altKey) return false;
+  const code = e.code || '', k = (e.key || '').toLowerCase();
+  if (p.letter) return e.shiftKey === p.shift && (code === 'Key' + p.key.toUpperCase() || (k === p.key && !e.altKey));
+  if (/^\d$/.test(p.key)) return (code === 'Digit' + p.key || code === 'Numpad' + p.key || k === p.key) && p.shift === e.shiftKey;
+  if (p.shift && !e.shiftKey) return false;
+  if (p.key === '+') return k === '+' || (k === '=' && true);
+  if (p.key === '=') return k === '=' || k === '+';
+  if (p.key === '-') return k === '-' || k === '_';
+  if (p.key === '?') return k === '?' || (code === 'Slash' && e.shiftKey);
+  return k === p.key;
+}
+// ---- dropdown rendering ----
+let openIdx = -1, activeDD = null, hoverOpened = false; const splitWrap = $('.splitrec'); const menuBar = $('#menubar');
+function ddFor(items) {
+  const dd = document.createElement('div'); dd.className = 'dd'; dd.setAttribute('role', 'menu');
+  items.forEach(it => {
+    if (it === '-') { const s = document.createElement('div'); s.className = 'msep'; dd.appendChild(s); return; }
+    const row = document.createElement('div'); row.className = 'mi'; row.setAttribute('role', 'menuitem'); const en = it.en ? it.en() : true; if (!en) row.classList.add('dis');
+    const ck = document.createElement('span'); ck.className = 'ck'; ck.textContent = it.ck && it.ck() ? '✓' : ''; const lb = document.createElement('span'); lb.textContent = it.l; const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = it.sub ? '▸' : (it.k || '');
+    row.append(ck, lb, kk); if (it.tip) row.dataset.tip = it.tip;
+    if (it.sub) { row.classList.add('has'); row.appendChild(ddFor(it.sub)); }
+    else row.addEventListener('click', e => { e.stopPropagation(); closeMenu(); it.f(); });
+    row.addEventListener('mouseenter', () => { $$('.mi.hi', row.parentNode).forEach(x => x.classList.remove('hi')); row.classList.add('hi'); activeDD = row.parentNode; });
+    dd.appendChild(row);
+  });
+  return dd;
+}
+function openMenu(i) {
+  closeMenu(); openIdx = i; const w = $$('.mn', menuBar)[i]; w.classList.add('open'); const dd = ddFor(MENUS[i].items); w.appendChild(dd); activeDD = dd; hideTip();
+}
+function closeMenu() { $$(':scope > .dd', splitWrap).forEach(d => d.remove()); hoverOpened = false; $$('.mn', menuBar).forEach(w => { w.classList.remove('open'); const d = $('.dd', w); if (d && d.parentNode === w) d.remove(); }); openIdx = -1; activeDD = null; }
+MENUS.forEach((m, i) => { const w = document.createElement('div'); w.className = 'mn'; const b = document.createElement('button'); b.className = 'mt'; b.textContent = m.name; b.setAttribute('aria-haspopup', 'true');
+  b.addEventListener('click', e => { e.stopPropagation(); if (hoverOpened) { hoverOpened = false; return; } openIdx === i ? closeMenu() : openMenu(i); }); b.addEventListener('mouseenter', () => { if (openIdx >= 0 && openIdx !== i && openIdx < MENUS.length) { openMenu(i); hoverOpened = true; } }); w.appendChild(b); menuBar.appendChild(w); });
+menuBar.addEventListener('pointerleave', () => { hoverOpened = false; });
+document.addEventListener('pointerdown', e => { if (openIdx >= 0 && !e.target.closest('.mn') && !e.target.closest('.splitrec')) closeMenu(); });
+$('#bRecOpt').addEventListener('click', e => { e.stopPropagation(); if (openIdx === 99) { closeMenu(); return; } closeMenu(); openIdx = 99; const dd = ddFor(MENUS.find(m => m.name === 'Record').items); splitWrap.appendChild(dd); activeDD = dd; hideTip(); });
+function menuKey(e) {
+  const rows = () => $$(':scope > .mi:not(.dis)', activeDD), cur = () => rows().findIndex(r => r.classList.contains('hi')), setHi = n => { const r = rows(); if (!r.length) return; $$('.mi.hi', activeDD).forEach(x => x.classList.remove('hi')); r[(n + r.length) % r.length].classList.add('hi'); };
+  const k = e.key; if (k === 'Escape') { closeMenu(); return true; }
+  if (k === 'ArrowDown') { setHi(cur() + 1); return true; } if (k === 'ArrowUp') { setHi(cur() < 0 ? -1 : cur() - 1); return true; }
+  const hiRow = rows()[cur()];
+  if (k === 'ArrowRight') { if (hiRow && hiRow.classList.contains('has')) { hiRow.classList.add('show'); activeDD = $(':scope > .dd', hiRow); setHi(0); } else if (openIdx < MENUS.length) openMenu((openIdx + 1) % MENUS.length); return true; }
+  if (k === 'ArrowLeft') { const par = activeDD.parentNode; if (par && par.classList.contains('mi')) { par.classList.remove('show'); activeDD = par.parentNode; } else if (openIdx < MENUS.length) openMenu((openIdx + MENUS.length - 1) % MENUS.length); return true; }
+  if (k === 'Enter' || k === ' ') { if (hiRow) { if (hiRow.classList.contains('has')) { hiRow.classList.add('show'); activeDD = $(':scope > .dd', hiRow); setHi(0); } else hiRow.click(); } return true; }
+  return false;
+}
+document.addEventListener('keydown', e => {
+  if (openIdx >= 0 && menuKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
+  if (e.target.matches && e.target.matches('input, select, textarea')) return;
+  if (document.querySelector('.modalbg')) return;
+  for (const k of KEYS) { if (!keyMatch(k.p, e)) continue; if (k.it.en && !k.it.en()) continue; e.preventDefault(); k.it.f(); return; }
+}, true);
+function openKeys() {
+  let html = '<div class="keytbl">'; MENUS.forEach(m => { const rows = []; const walk = items => items.forEach(it => { if (it === '-') return; if (it.sub) walk(it.sub); else if (it.k) rows.push(`<div class="r"><span>${it.l}</span><span class="kk">${it.k}</span></div>`); }); walk(m.items); if (rows.length) html += `<section><h4>${m.name}</h4>${rows.join('')}</section>`; });
+  html += '</div><div class="hint" style="margin-top:10px">Mouse: drag to select, click for the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll, double click selects all. Double click an operation to apply it.</div>';
+  modal('Keyboard shortcuts', html, [['Close', null, 'on']], m => { m.style.width = 'min(980px, 100%)'; });
+}
 
 // ---------- resize ----------
 let zoom = 1, base = 1; const ZSTEPS = [.75, 1, 1.25, 1.5, 2], DW = 1240; let DH = 800;
@@ -857,15 +1156,15 @@ addEventListener('resize', layoutScale);
 let visible = true, last = 0, n = 0; new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe($('#unit'));
 function frame(t) {
   requestAnimationFrame(frame); if (document.hidden || !visible || t - last < (powerSave ? 50 : 16)) return; last = t; ++n;
-  if (rec.ring && state.recOn && !rec.isRecording() && !rec.isArmed()) { state.recOn = false; syncRec(); }
-  if (rec.isRecording() && rec.recordedFrames() / rec.sr > 1200) stopRecording(); if (rec.ring && (rec.isRecording() || rec.isArmed()) && n % 6 === 0) syncRec();
+  if (rec.ring && state.recOn && !state.counting && !rec.isRecording() && !rec.isArmed()) { state.recOn = false; syncRec(); }
+  if (rec.isRecording() && rec.recordedFrames() / rec.sr > 1200) stopRecording(); if (rec.ring && (rec.isRecording() || rec.isArmed() || state.counting) && n % 6 === 0) syncRec();
   if (state.recOn && rec.isRecording() === false && !rec.isArmed()) { /* stopped by the engine */ }
   drawLive(); drawWave(); if (n % 2 === 0 || state.playing) drawSpec(); drawMeter(); if (n % 4 === 0) drawReadout();
 }
 
 // ---------- start ----------
-try { const s = JSON.parse(store.get('mc.set') || '{}'); tipOn = s.tipOn !== false; powerSave = !!s.powerSave; showSpec = s.showSpec !== false; showHits = s.showHits !== false; } catch (e) {}
-buildOps(); buildRec(); selectOp(0); syncSegs(); viewFit(); changed(); syncPlay(); syncRec();
+try { const s = JSON.parse(store.get('mc.set') || '{}'); tipOn = s.tipOn !== false; powerSave = !!s.powerSave; showSpec = s.showSpec === true; showHits = s.showHits !== false; } catch (e) {}
+buildOps(); buildRec(); selectOp(0); syncSegs(); markTool('mouse'); viewFit(); changed(); syncPlay(); syncRec();
 const z0 = parseFloat(store.get('mc.zoom')); zoom = z0 > 0 ? clamp(z0, .4, 3) : 1; layoutScale();
 window.__mc = { ed, rec, state, opP, MC, OPS };
 requestAnimationFrame(frame);
