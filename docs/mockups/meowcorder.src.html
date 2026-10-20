@@ -1,0 +1,247 @@
+<title>Meowcorder</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=JetBrains+Mono&display=swap">
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root {
+  --ground: #0b0b0d; --panel: #15161a; --panel-2: #1c1d22; --line: #2b2d34; --ink: #f4f5f7; --ink-dim: #a9adb8;
+  --knob: #23252c; --wood-1: #5a3419; --wood-2: #7b4a26; --wood-3: #3d2210;
+  --green: #02EBBA; --yellow: #FFD100; --orange: #FF9000; --pink: #FF1383; --violet: #A43DFF; --blue: #6CC9F5;
+  --f-label: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --f-num: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--f-label); font-size: 15px; letter-spacing: .04em;
+  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.viewport { overflow: auto; max-width: 100%; display: flex; }
+.stage { position: relative; margin: 0 auto; flex: none; padding: 7px; }
+.unit { width: 1240px; transform-origin: 0 0; position: absolute; left: 7px; top: 7px; display: grid; grid-template-columns: 34px minmax(0,1fr) 34px; box-shadow: 0 30px 80px #000c; border-radius: 4px; overflow: hidden; }
+.cheek { cursor: default; background: repeating-linear-gradient(90deg,rgba(0,0,0,.22) 0 1px,rgba(0,0,0,.06) 1px 2px,rgba(0,0,0,.14) 2px 3px,rgba(0,0,0,.05) 3px 5px,rgba(0,0,0,.2) 5px 6px,rgba(0,0,0,.08) 6px 8px),linear-gradient(90deg,#3d2210 0%,#7b4a26 40%,#5a3419 75%,#3d2210 100%); }
+.cheek.l { box-shadow: inset -4px 0 8px rgba(0,0,0,.6); }
+.cheek.r { box-shadow: inset 0 0 0 1px rgba(0,0,0,.45); }
+.panel { background: radial-gradient(ellipse at 50% 0%, #1e1f23 0%, var(--panel) 60%), var(--panel); padding: 10px 14px 10px; display: grid; gap: 10px; min-width: 0; }
+.rh { position: absolute; z-index: 30; background: transparent; touch-action: none; }
+.rh.n, .rh.s { height: 7px; left: 14px; right: 14px; cursor: ns-resize; } .rh.n { top: 0; } .rh.s { bottom: 0; }
+.rh.e, .rh.w { width: 7px; top: 14px; bottom: 14px; cursor: ew-resize; } .rh.e { right: 0; } .rh.w { left: 0; }
+.rh.nw, .rh.ne, .rh.sw, .rh.se { width: 14px; height: 14px; } .rh.nw { top: 0; left: 0; cursor: nwse-resize; } .rh.se { bottom: 0; right: 0; cursor: nwse-resize; }
+.rh.ne { top: 0; right: 0; cursor: nesw-resize; } .rh.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.rh:hover { background: #6cc9f533; }
+
+header.top { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 8px 16px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand svg { width: 38px; height: 38px; } .brand b { font-size: 30px; font-weight: 700; letter-spacing: .12em; } .brand small { color: var(--ink-dim); font-size: 12px; text-transform: uppercase; letter-spacing: .16em; align-self: flex-end; padding-bottom: 5px; }
+.presets { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: auto minmax(0,1fr) auto auto auto auto auto; gap: 6px; align-items: center; position: relative; }
+.pname { background: #0a0a0c; border: 1px solid var(--line); border-radius: 3px; padding: 7px 12px; font-family: var(--f-num); font-size: 14px; color: var(--ink); display: flex; justify-content: space-between; gap: 8px; cursor: pointer; min-width: 0; text-align: left; letter-spacing: 0; }
+.pname span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pname span:last-child { color: var(--green); font-size: 12px; }
+button, .btn { font: inherit; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 7px 11px; cursor: pointer; font-size: 13px; }
+button:hover { border-color: #4a4d58; }
+button:focus-visible, .knob:focus-visible, .pname:focus-visible, .key:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+button.on { background: #ff138322; border-color: var(--pink); color: #fff; }
+button.on.teal { background: #02ebba22; border-color: var(--green); }
+button.on.blue { background: #6cc9f522; border-color: var(--blue); }
+.plist { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; background: #0d0e11; border: 1px solid var(--line); border-radius: 4px; max-height: 320px; overflow: auto; box-shadow: 0 14px 30px #000c; }
+.plist button { display: grid; grid-template-columns: 1fr auto; width: 100%; text-align: left; border: 0; border-radius: 0; background: transparent; text-transform: none; font-family: var(--f-num); font-weight: 400; letter-spacing: 0; }
+.plist button:hover, .plist button[aria-current="true"] { background: var(--panel-2); } .plist small { color: var(--ink-dim); }
+.hdr-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.led { width: 10px; height: 10px; border-radius: 50%; background: #3a3d46; display: inline-block; margin-right: 6px; vertical-align: -1px; } .on .led { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+.strip { display: grid; grid-template-columns: 190px minmax(0,1fr) 150px; gap: 10px; }
+.box { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; min-width: 0; }
+.box h3, .sec h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-dim); display: flex; justify-content: space-between; gap: 6px; }
+.seg { display: flex; gap: 0; } .seg button { border-radius: 0; flex: 1; padding: 6px 4px; font-size: 12px; margin-left: -1px; } .seg button:first-child { border-radius: 3px 0 0 3px; margin: 0; } .seg button:last-child { border-radius: 0 3px 3px 0; }
+.seg button.on { position: relative; z-index: 1; }
+.transport { display: grid; gap: 8px; align-content: start; }
+.playbtn { width: 100%; border-color: var(--green); background: #02ebba1a; font-size: 14px; padding: 8px; }
+.playbtn.on { background: var(--green); color: #04110e; border-color: var(--green); }
+.transport .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+select { font: inherit; font-size: 13px; background: #0a0a0c; color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px; width: 100%; letter-spacing: .02em; }
+.dispwrap { position: relative; padding: 0; overflow: hidden; }
+canvas { display: block; width: 100%; }
+#main { height: 212px; cursor: crosshair; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: #0b0b0dd9; text-align: center; font-size: 17px; z-index: 2; }
+.overlay button { font-size: 16px; padding: 12px 22px; border-color: var(--pink); background: #ff138322; }
+.overlay small { display: block; color: var(--ink-dim); margin-top: 8px; font-size: 13px; letter-spacing: .04em; }
+.dropnote { position: absolute; right: 8px; top: 5px; font-size: 12px; color: var(--ink-dim); pointer-events: none; text-transform: uppercase; letter-spacing: .1em; }
+.dropnote.hot, .dispwrap.hot { color: var(--pink); } .dispwrap.hot { outline: 2px dashed var(--pink); outline-offset: -3px; }
+.legend { position: absolute; right: 8px; top: 6px; font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .1em; pointer-events: none; text-align: right; }
+
+.body { display: grid; grid-template-columns: minmax(0,1fr) 150px; gap: 10px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+.tabs button { padding: 7px 18px; font-size: 14px; } .tabs .grow { flex: 1; }
+.tabs .stat { font-family: var(--f-num); font-size: 12px; color: var(--ink-dim); letter-spacing: 0; }
+.page { display: none; gap: 10px; grid-template-columns: repeat(12, minmax(0,1fr)); } .page.show { display: grid; }
+.sec { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px 10px; min-width: 0; }
+.sec .knobs { display: flex; flex-wrap: wrap; gap: 8px 4px; justify-content: flex-start; }
+.sec .inner { display: block; }
+.sec.side .inner { display: flex; gap: 10px; align-items: flex-start; }
+.sec.side .inner .knobs { flex: 1 1 auto; min-width: 0; }
+.sec.side .inner .gfx { flex: none; }
+.sec .gfx { margin-top: 8px; width: 100%; border: 1px solid var(--line); border-radius: 3px; background: #0a0a0c; }
+#pg-riser { grid-template-columns: 440px minmax(0,1fr); } #pg-riser > * { grid-column: auto; } #pg-thicken .knobwrap { width: 72px; } #pg-riser .knobwrap { width: 66px; }
+#pg-grains { grid-template-columns: 430px 270px minmax(0,1fr); }
+#pg-grains .sec { grid-column: auto; }
+#pg-grains .sec[data-sec=Time] { grid-column: 1 / -1; }
+.outcol .knobwrap { width: 62px; } .outcol .knobwrap label { letter-spacing: 0; }
+.col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.sec.time .choicerow, .sec .choicerow { width: auto; }
+.sec .choicerow { flex: 1 1 100%; }
+.sec[data-sec=Time] .choicerow { flex: 1 1 420px; }
+.sec.side .gfx { margin-top: 0; }
+.sec.filt .knobs { }
+.sec .note { font-size: 12px; color: var(--ink-dim); margin-top: 6px; letter-spacing: .02em; }
+.c12 { grid-column: span 12; } .c8 { grid-column: span 8; } .c7 { grid-column: span 7; } .c6 { grid-column: span 6; } .c5 { grid-column: span 5; } .c4 { grid-column: span 4; } .c3 { grid-column: span 3; }
+.knobwrap { width: 78px; display: grid; justify-items: center; gap: 1px; }
+.knobwrap label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-dim); white-space: nowrap; }
+.knob { width: 50px; height: 50px; cursor: ns-resize; touch-action: none; border-radius: 50%; }
+.knob svg { width: 100%; height: 100%; display: block; }
+.val { font-family: var(--f-num); font-size: 12px; letter-spacing: 0; color: var(--ink); background: transparent; border: 0; padding: 1px 2px; cursor: text; min-width: 52px; text-align: center; text-transform: none; font-weight: 400; }
+input.valin { font-family: var(--f-num); font-size: 12px; width: 62px; text-align: center; background: #000; color: var(--ink); border: 1px solid var(--blue); border-radius: 2px; padding: 1px; }
+.choice { display: grid; gap: 2px; justify-items: center; min-width: 130px; flex: 1 1 0; align-content: start; } .choice label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-dim); }
+.choice .seg { width: 100%; }
+.choicerow { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; }
+.outcol { display: grid; gap: 10px; align-content: start; }
+.meterbox { display: flex; gap: 6px; justify-content: center; align-items: stretch; height: 190px; }
+#meter { width: 74px; height: 100%; }
+.hint { color: var(--ink-dim); font-size: 12px; letter-spacing: .02em; }
+
+.kbdwrap { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 10px; align-items: stretch; }
+.kbdctl { display: grid; gap: 6px; align-content: center; font-size: 12px; text-align: center; color: var(--ink-dim); text-transform: uppercase; }
+.kbdctl .two { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; } .kbdctl button { padding: 5px 8px; }
+.kbd { position: relative; height: 74px; background: #000; border: 1px solid var(--line); border-radius: 3px; user-select: none; touch-action: none; }
+.key { position: absolute; top: 0; bottom: 0; border: 0; padding: 0; border-radius: 0 0 3px 3px; background: linear-gradient(#e9e9ee, #f9f9fb); color: #222; font-size: 10px; letter-spacing: 0; display: flex; align-items: flex-end; justify-content: center; cursor: pointer; border-right: 1px solid #000; }
+.key.black { background: linear-gradient(#35373f, #17181c); z-index: 2; bottom: 30%; border: 1px solid #000; }
+.key.down { background: var(--pink); color: #fff; } .key.black.down { background: #c40d66; }
+.kbd.km .key.special::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: 3px; height: 3px; background: var(--green); border-radius: 2px; }
+.key.white.special span { margin-bottom: 8px; }
+footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-dim); letter-spacing: .06em; text-transform: none; border-top: 1px solid var(--line); padding-top: 8px; }
+
+.tip { position: fixed; z-index: 100; max-width: 280px; background: #0d0e11; border: 1px solid var(--blue); border-radius: 4px; padding: 7px 9px; font-size: 13px; letter-spacing: .02em; line-height: 1.3; pointer-events: none; box-shadow: 0 10px 24px #000c; }
+.tip b { display: block; color: var(--blue); margin-bottom: 2px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; } .tip i { color: var(--ink-dim); font-style: normal; font-family: var(--f-num); font-size: 11px; display: block; margin-top: 3px; }
+.modalbg { position: fixed; inset: 0; background: #000b; z-index: 90; display: grid; place-items: center; padding: 16px; }
+.modal { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; width: min(560px, 100%); max-height: 86vh; overflow: auto; box-shadow: 0 20px 60px #000; letter-spacing: .02em; line-height: 1.35; }
+.modal h2 { margin: 0 0 10px; font-size: 22px; letter-spacing: .1em; text-transform: uppercase; } .modal ul, .modal ol { margin: 6px 0 10px; padding-left: 22px; } .modal li { margin: 3px 0; }
+.modal .btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+.modal input[type=text], .modal textarea { width: 100%; font-family: var(--f-num); font-size: 13px; background: #0a0a0c; color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 7px; letter-spacing: 0; }
+.modal textarea { height: 160px; resize: vertical; } .modal label.row { display: flex; gap: 8px; align-items: center; margin: 8px 0; cursor: pointer; }
+.modal a.btn { text-decoration: none; display: inline-block; border-color: var(--pink); background: #ff138322; }
+.err { color: var(--orange); font-size: 13px; min-height: 18px; }
+@media (max-width: 700px) { body { padding-block: 8px; } }
+
+/* Meowcorder additions */
+.fbar { grid-column: 1 / -1; grid-row: 2; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.fbar select { width: auto; }
+.fbar .sp { flex: 1; }
+.strip { grid-template-columns: 250px minmax(0,1fr) 112px; }
+.recbox { min-width: 0; } .recbox select { width: 100%; min-width: 0; } .recbox .seg button { white-space: nowrap; font-size: 11px; padding: 6px 2px; letter-spacing: .04em; }
+.recbox { display: grid; gap: 8px; align-content: start; }
+.recbtn { width: 100%; border-color: var(--pink); background: #ff138322; font-size: 15px; padding: 10px; }
+.recbtn.on { background: var(--pink); color: #fff; animation: pulse 1s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 14px var(--pink); } }
+.recbox .knobs { display: flex; justify-content: space-around; gap: 4px; }
+.recbox .knobwrap { width: 90px; }
+.twoc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#live { height: 46px; border-bottom: 1px solid var(--line); }
+#wave { height: 210px; cursor: text; }
+#spec { height: 130px; border-top: 1px solid var(--line); }
+.readout { font-family: var(--f-num); font-size: 12px; color: var(--ink-dim); letter-spacing: 0; display: flex; gap: 18px; flex-wrap: wrap; padding: 5px 4px 0; }
+.readout b { color: var(--ink); font-weight: 400; }
+.editbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.editbar .sep { width: 1px; height: 24px; background: var(--line); margin: 0 4px; }
+.editbar button[disabled], .fbar button[disabled] { opacity: .35; cursor: default; }
+.proc { display: grid; grid-template-columns: minmax(0,1fr) 430px; gap: 10px; }
+.oplist { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.opgrp h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-dim); }
+.opgrp { display: grid; gap: 4px; align-content: start; }
+.opgrp button { white-space: nowrap; text-align: left; padding: 6px 8px; font-size: 12.5px; text-transform: none; letter-spacing: .03em; font-weight: 600; }
+.opgrp button.on { background: #ff138322; border-color: var(--pink); }
+.params .knobs { display: flex; flex-wrap: wrap; gap: 8px 4px; min-height: 92px; align-content: flex-start; }
+.params .optip { font-size: 12.5px; color: var(--ink-dim); margin: 4px 0 8px; letter-spacing: .02em; line-height: 1.3; }
+.params .acts { display: flex; gap: 6px; margin-top: 8px; }
+.params .acts button { flex: 1; }
+.params .acts .go { border-color: var(--green); background: #02ebba1a; }
+#meter { height: 100%; }
+.rep { font-family: var(--f-num); text-transform: none; letter-spacing: 0; font-weight: 400; }
+</style>
+
+<div class="viewport"><div class="stage" id="stage"><div class="unit" id="unit">
+  <div class="cheek l" id="cheekL"></div>
+  <div class="panel">
+    <header class="top">
+      <div class="brand">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M4.5 5C10 7 17 11 21 14c3-.5 7-2 11-2s8 1.500 11 2C47 11 55 7 60 5.500L61 24C61 40 48 50 32 58 16 50 3 40 3.700 24z" fill="#f4f5f7"/><path d="M11.300 25.800C20 26 25 31 27 36.500 21 37.500 15 36 12.500 31zM52.700 25.800C44 26 39 31 37 36.500 43 37.500 49 36 51.500 31z" fill="#15161a"/></svg>
+        <b>Meowcorder</b><small>Studio 87</small>
+      </div>
+      <div class="hdr-right">
+        <button id="power" data-tip="Audio on or off. Browsers need one click before they play sound."><span class="led"></span>Audio</button>
+        <button id="bGuide">Guide</button><button id="bSet">Settings</button><button id="bAbout">About &amp; Support</button>
+        <button id="bZoom" data-tip="Window size, percent of the default. Drag any edge or corner to resize; double click the wood to go back to 100%.">100%</button>
+      </div>
+      <div class="fbar">
+        <button id="bNew" data-tip="Start with an empty sound. Undo brings the old one back.">New</button>
+        <button id="bOpen" data-tip="Open an audio file. You can also drop a file on the display.">Open</button>
+        <button id="bSave" data-tip="Save the sound as a WAV file. In this web mockup the browser may block the download; in the plugin the sound can also be dragged back into the track.">Save WAV</button>
+        <select id="bits" aria-label="Bit depth" data-tip="Bit depth of the saved file. 32 bit is float, nothing is lost."><option value="16">16 bit</option><option value="24" selected>24 bit</option><option value="32">32 bit float</option></select>
+        <span class="sp"></span>
+        <span class="hint" id="fname">demo loop, not saved</span>
+      </div>
+    </header>
+
+    <section class="strip">
+      <div class="box recbox">
+        <h3>Record</h3>
+        <select id="inSel" aria-label="Input" data-tip="Where the sound comes from. In the plugin: the track the plugin sits on, or a mixer slot. Here: a demo loop or your microphone."><option value="demo">Demo: house loop</option><option value="mic">Microphone</option></select>
+        <div class="seg" id="startSeg"><button data-v="1" data-tip="Recording starts the moment you press Record.">Now</button><button data-v="2" data-tip="Press Record to arm. Recording starts when the sound passes the threshold. The pre-roll is included.">Threshold</button></div>
+        <div class="knobs" id="recK"></div>
+        <button class="recbtn" id="bRec" data-tip="Record. Press again to stop. Meowcorder is always listening, so the pre-roll can include the sound from just before you pressed.">&#9679; Record</button>
+        <div class="seg" id="takeSeg" data-tip="What happens to a new recording: Replace the whole sound, Append at the end, Punch over the selection, or Insert at the start of the selection."><button data-v="0">Replace</button><button data-v="1">Append</button><button data-v="2">Punch</button><button data-v="3">Insert</button></div>
+        <button id="bGrab" data-tip="Keeps the last seconds that were already heard, even though you were not recording. Uses the Pre-roll length (up to 30 seconds).">Grab the last seconds</button>
+        <div class="hint" id="recHint"></div>
+      </div>
+      <div class="box dispwrap" id="dispwrap">
+        <canvas id="live" width="1000" height="46" data-tip="Input, always listening: the last 3 seconds. The pink band is the pre-roll that a recording would include."></canvas>
+        <canvas id="wave" width="1000" height="210" data-tip="The sound. Drag to select, click to place the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll. Operations work on the selection, or on everything when nothing is selected."></canvas>
+        <canvas id="spec" width="1000" height="130" data-tip="Spectrogram of what you see above. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level."></canvas>
+        <div class="dropnote" id="dropnote" style="bottom:136px">Drop an audio file here</div>
+        <div class="overlay" id="overlay"><div><button id="bStart">Start audio</button><small>Everything is made inside this page. Nothing is sent anywhere.</small></div></div>
+      </div>
+      <div class="box"><h3>Level</h3><div class="meterbox"><canvas id="meter" width="74" height="250"></canvas></div></div>
+    </section>
+
+    <div class="readout" id="readout"></div>
+
+    <div class="editbar">
+      <button id="bPlay" class="playbtn" style="width:auto;padding:6px 14px" data-tip="Play from the cursor, or the selection. Space.">&#9654; Play</button>
+      <button id="bLoop" data-tip="Repeat while playing.">Loop</button>
+      <span class="sep"></span>
+      <button id="bUndo" data-tip="Undo the last change. Ctrl Z.">Undo</button><button id="bRedo" data-tip="Redo. Ctrl Y.">Redo</button>
+      <span class="sep"></span>
+      <button id="bCut" data-tip="Cut the selection to the clipboard. Ctrl X.">Cut</button><button id="bCopy" data-tip="Copy the selection. Ctrl C.">Copy</button><button id="bPaste" data-tip="Paste at the cursor, or over the start of the selection. Ctrl V.">Paste</button>
+      <button id="bDel" data-tip="Delete the selection and close the gap. Delete.">Delete</button><button id="bCrop" data-tip="Keep only the selection.">Crop</button><button id="bAll" data-tip="Select everything. Ctrl A.">Select all</button><button id="bSnap" data-tip="Move the selection edges to the nearest zero crossing, so cuts do not click.">Snap to zero</button>
+      <span class="sep"></span>
+      <button id="bZin" data-tip="Zoom in on the waveform.">+</button><button id="bZout" data-tip="Zoom out.">-</button><button id="bFit" data-tip="Show the whole sound.">Fit</button><button id="bSel" data-tip="Zoom to the selection.">To selection</button>
+      <span class="sep"></span>
+      <button id="bRepeat" class="rep" data-tip="Do the last operation again on the current selection. R.">Repeat last: none</button>
+    </div>
+
+    <section class="proc">
+      <div class="sec"><h3>Process <span id="opHint" class="hint" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h3><div class="oplist" id="oplist"></div></div>
+      <div class="sec params"><h3 id="opName">Gain</h3><div class="optip" id="opTip"></div><div class="knobs" id="opK"></div>
+        <div class="acts"><button id="bPrev" data-tip="Listen to the result on the selection without changing the sound.">Preview</button><button id="bApply" class="go" data-tip="Apply to the selection, or to everything when nothing is selected. Undo brings the old sound back.">Apply</button></div></div>
+    </section>
+
+    <footer><span>Studio 87 &middot; Meowcorder v0.1 design mockup</span><span>Collects nothing. No network calls. Records only after you press Record.</span></footer>
+  </div>
+  <div class="cheek r" id="cheekR"></div>
+</div>
+<div class="rh n" data-h="n"></div><div class="rh s" data-h="s"></div><div class="rh e" data-h="e"></div><div class="rh w" data-h="w"></div>
+<div class="rh nw" data-h="nw"></div><div class="rh ne" data-h="ne"></div><div class="rh sw" data-h="sw"></div><div class="rh se" data-h="se"></div>
+</div></div>
+<div class="tip" id="tip" hidden></div>
+<input type="file" id="file" accept="audio/*,.wav,.aif,.aiff,.flac,.ogg,.mp3" hidden>
+
+<script>/*ENGINE*/</script>
+<script>window.MC_OPS = /*OPS*/;</script>
+<script>
+/*APP*/
+</script>
