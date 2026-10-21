@@ -3,7 +3,7 @@
 A free audio recorder and editor for Linux first (also Windows and macOS): record from a track or input, cut and process the sound, drop it back. Made for quick sound design in the middle of a project. Part of the Studio 87 cat plugin suite.
 
 ## Status
-Version 0.1 (early): the engine is done (pure C++, 619 passing checks) and the window is designed as an interactive mockup (`docs/mockups/Meowcorder.html`, open it in any browser). The plugin and the installers are not built yet. See [ROADMAP](ROADMAP.md) and the [manual](docs/Meowcorder_manual.pdf).
+Version 0.1 (early): the engine is done (pure C++, 619 passing checks) and the window is designed as an interactive mockup (`docs/mockups/Meowcorder.html`, open it in any browser). The plugin and the installers are not built yet. See [ROADMAP](ROADMAP.md) and the [manual](https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf) (opens right in the browser).
 
 ## What the window does (mockup)
 - Its own Edison-style history: undo, redo, repeat the last operation (Ctrl+Shift+Z), and jump to any step. Separate from your DAW.
