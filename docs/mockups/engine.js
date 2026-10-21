@@ -176,6 +176,12 @@ function spectralPaste(a, clip, atFrame, destHz) {
   });
   return true;
 }
+function peakOverviewCh(a, ch, from, to, cols) {
+  const x = ch ? a.r : a.l, mn = new Float32Array(cols), mx = new Float32Array(cols); to = Math.min(to, a.frames); if (!cols || to <= from) return { mn, mx };
+  const per = (to - from) / cols;
+  for (let c = 0; c < cols; ++c) { const x0 = from + Math.floor(c * per); let x1 = from + Math.floor((c + 1) * per); if (x1 <= x0) x1 = x0 + 1; x1 = Math.min(x1, to); let lo = 0, hi = 0; for (let i = x0; i < x1; ++i) { const v = x[i]; if (v < lo) lo = v; if (v > hi) hi = v; } mn[c] = lo; mx[c] = hi; }
+  return { mn, mx };
+}
 function detectTransients(a, sens) {
   const out = [], hop = 256, frames = Math.floor(a.frames / hop); if (frames < 4) return out; const e = new Float32Array(frames);
   for (let f = 0; f < frames; ++f) { let s = 0; for (let i = 0; i < hop; ++i) { const x = .5 * (a.l[f * hop + i] + a.r[f * hop + i]); s += x * x; } e[f] = Math.sqrt(s / hop); }
@@ -376,6 +382,6 @@ class Recorder {
   captureLast(seconds) { const o = new Audio(this.sr), want = Math.min(this.filled, Math.round(seconds * this.sr)); o.l = new Float32Array(want); o.r = new Float32Array(want); for (let i = 0; i < want; ++i) { const k = (this.w + this.cap - want + i) % this.cap; o.l[i] = this.ring[0][k]; o.r[i] = this.ring[1][k]; } return o; }
 }
 
-const MC = { spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
+const MC = { peakOverviewCh, spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
 if (typeof module !== 'undefined' && module.exports) module.exports = MC; else root.MC = MC;
 })(typeof window !== 'undefined' ? window : globalThis);
