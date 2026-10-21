@@ -10,7 +10,9 @@ Next
 4. Manual with interface tour, installers (Windows, macOS, Flatpak), release workflow
 5. Test in Bitwig and Ableton
 
+   v4 mockup: own Edison-style history (undo, redo, repeat, jump to any step), process popups with scope and mix, waveform / spectral / pitch views (solo, overlay or split, front view gets the edits), timing with bpm and host sync, warp modes, transpose and formants, piano roll with draggable notes, clickable channel / rate / bit depth info, configurable Play keys, spectral pencil and waveform pencil. New DSP is JavaScript only for now (tools/dsp_test.js); the C++ port comes with the plugin.
+
 Known limits
 - Reverb, compressor, limiter and gate are simple and not tuned by ear
-- Pitch and speed changes pitch and length together (like tape); no time stretch yet
+- Warp preview renders the sound first, so long sounds may pause for a moment
 - Name is not final

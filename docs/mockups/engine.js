@@ -65,6 +65,7 @@ function encodeWav(a, bits) {
   for (let i = 0; i < n; ++i) for (let c = 0; c < 2; ++c) {
     const x = clampf((c ? a.r : a.l)[i], -1, 1);
     if (flt) { v.setFloat32(p, x, true); p += 4; }
+    else if (bits === 8) { v.setUint8(p, Math.max(0, Math.min(255, Math.round(x * 127) + 128))); p += 1; }
     else if (bits === 16) { v.setInt16(p, Math.round(x * 32767), true); p += 2; }
     else { const q = Math.round(x * 8388607); v.setUint8(p, q & 255); v.setUint8(p + 1, (q >> 8) & 255); v.setUint8(p + 2, (q >> 16) & 255); p += 3; }
   }
@@ -91,6 +92,7 @@ function decodeWav(d) {
     (c ? a.r : a.l)[i] = x;
   }
   if (chans === 1) a.r = a.l.slice();
+  a.bits = fmt === 3 ? 32 : bits;
   return a;
 }
 
@@ -324,36 +326,43 @@ class Editor {
   setSelection(a, b) { if (a > b) [a, b] = [b, a]; this.selA = Math.min(a, this.audio.frames); this.selB = Math.min(b, this.audio.frames); this.cursor = this.selA; }
   setCursor(c) { this.cursor = Math.min(c, this.audio.frames); this.selA = this.selB = 0; }
   rangeStart() { return this.hasSelection() ? this.selA : 0; } rangeEnd() { return this.hasSelection() ? this.selB : this.audio.frames; }
-  snap() { return { a: this.audio.clone(), sa: this.selA, sb: this.selB }; }
+  snap(label) { return { a: this.audio.clone(), sa: this.selA, sb: this.selB, label: label || 'Edit' }; }
   restore(s) { this.audio = s.a; this.selA = s.sa; this.selB = s.sb; }
-  pushUndo() { this.undoStack.push(this.snap()); this.redoStack = []; let bytes = 0; for (const s of this.undoStack) bytes += s.a.frames * 8; while (this.undoStack.length > 1 && bytes > this.limitBytes) { bytes -= this.undoStack[0].a.frames * 8; this.undoStack.shift(); } }
-  apply(op, p) {
+  pushUndo(label) { this.undoStack.push(this.snap(label)); this.redoStack = []; let bytes = 0; for (const s of this.undoStack) bytes += s.a.frames * 8; while (this.undoStack.length > 1 && bytes > this.limitBytes) { bytes -= this.undoStack[0].a.frames * 8; this.undoStack.shift(); } }
+  apply(op, p, opt) {
     if (op < 0 || op >= this.OPS.length || !this.audio.frames) return false;
-    this.pushUndo(); const ne = applyOp(this.audio, op, this.rangeStart(), this.rangeEnd(), p);
-    if (this.hasSelection()) this.selB = ne; else if (this.OPS[op].changesLength) this.selA = this.selB = 0;
+    this.pushUndo(this.OPS[op].name); const all = !!(opt && opt.all), s = all ? 0 : this.rangeStart(), e = all ? this.audio.frames : this.rangeEnd(), mix = opt && opt.mix !== undefined ? opt.mix : 1, dry = mix < 1 && !this.OPS[op].changesLength ? this.audio.slice(s, e) : null;
+    const ne = applyOp(this.audio, op, s, e, p);
+    if (dry) for (let i = s; i < e; ++i) { this.audio.l[i] = dry.l[i - s] * (1 - mix) + this.audio.l[i] * mix; this.audio.r[i] = dry.r[i - s] * (1 - mix) + this.audio.r[i] * mix; }
+    if (this.hasSelection() && !all) this.selB = ne; else if (this.OPS[op].changesLength) this.selA = this.selB = 0;
     this.last = { op, p: p.slice() }; return true;
   }
   repeatLast() { return this.last ? this.apply(this.last.op, this.last.p) : false; }
   canUndo() { return this.undoStack.length > 0; } canRedo() { return this.redoStack.length > 0; }
-  undo() { if (!this.undoStack.length) return; this.redoStack.push(this.snap()); this.restore(this.undoStack.pop()); }
-  redo() { if (!this.redoStack.length) return; this.undoStack.push(this.snap()); this.restore(this.redoStack.pop()); }
+  undo() { if (!this.undoStack.length) return; const s = this.undoStack.pop(); this.redoStack.push(this.snap(s.label)); this.restore(s); }
+  redo() { if (!this.redoStack.length) return; const s = this.redoStack.pop(); this.undoStack.push(this.snap(s.label)); this.restore(s); }
+  // History: the done steps first, then the undone ones. jumpTo(k) goes to the state after k done steps.
+  history() { const done = this.undoStack.map(s => s.label), undone = this.redoStack.slice().reverse().map(s => s.label); return { done, undone }; }
+  jumpTo(k) { while (this.undoStack.length > k && this.undoStack.length) this.undo(); while (this.undoStack.length < k && this.redoStack.length) this.redo(); }
+  // Changes the sound with fn(audio); fn may return a new Audio. One undo step.
+  transform(label, fn) { if (!this.audio.frames) return false; this.pushUndo(label); const r = fn(this.audio); if (r) { this.audio = r; this.selA = Math.min(this.selA, r.frames); this.selB = Math.min(this.selB, r.frames); this.cursor = Math.min(this.cursor, r.frames); } return true; }
   copy() { if (this.hasSelection()) this.clip = this.audio.slice(this.selA, this.selB); }
-  cut() { if (!this.hasSelection()) return; this.clip = this.audio.slice(this.selA, this.selB); this.pushUndo(); this.audio.erase(this.selA, this.selB); this.cursor = this.selA; this.selB = this.selA; }
-  deleteSelection() { if (!this.hasSelection()) return; this.pushUndo(); this.audio.erase(this.selA, this.selB); this.cursor = this.selA; this.selB = this.selA; }
-  cropToSelection() { if (!this.hasSelection()) return; this.pushUndo(); this.audio = this.audio.slice(this.selA, this.selB); this.selA = 0; this.selB = this.audio.frames; }
-  paste() { if (!this.clip.frames) return; this.pushUndo(); const at = this.hasSelection() ? this.selA : Math.min(this.cursor, this.audio.frames); this.audio.insert(at, this.clip); this.selA = at; this.selB = at + this.clip.frames; }
-  insertSilenceAtSelection(n) { this.pushUndo(); const at = this.rangeStart(); this.audio.insertSilence(at, n); this.selA = at; this.selB = at + n; }
+  cut() { if (!this.hasSelection()) return; this.clip = this.audio.slice(this.selA, this.selB); this.pushUndo('Cut'); this.audio.erase(this.selA, this.selB); this.cursor = this.selA; this.selB = this.selA; }
+  deleteSelection() { if (!this.hasSelection()) return; this.pushUndo('Delete'); this.audio.erase(this.selA, this.selB); this.cursor = this.selA; this.selB = this.selA; }
+  cropToSelection() { if (!this.hasSelection()) return; this.pushUndo('Crop'); this.audio = this.audio.slice(this.selA, this.selB); this.selA = 0; this.selB = this.audio.frames; }
+  paste() { if (!this.clip.frames) return; this.pushUndo('Paste'); const at = this.hasSelection() ? this.selA : Math.min(this.cursor, this.audio.frames); this.audio.insert(at, this.clip); this.selA = at; this.selB = at + this.clip.frames; }
+  insertSilenceAtSelection(n) { this.pushUndo('Insert silence'); const at = this.rangeStart(); this.audio.insertSilence(at, n); this.selA = at; this.selB = at + n; }
   // mode: 0 replace everything, 1 append at the end, 2 replace the selection (punch), 3 insert at the start of the selection
   takeRecording(rec, mode) {
     if (!rec.frames) return; if (mode === 0 || !this.audio.frames) { this.load(rec); return; }
-    this.pushUndo();
+    this.pushUndo('Recording');
     if (mode === 1) { const at = this.audio.frames; this.audio.insert(at, rec); this.selA = at; this.selB = at + rec.frames; }
     else if (mode === 2 && this.hasSelection()) { const a = this.selA; this.audio.erase(this.selA, this.selB); this.audio.insert(a, rec); this.selA = a; this.selB = a + rec.frames; }
     else { const at = this.rangeStart(); this.audio.insert(at, rec); this.selA = at; this.selB = at + rec.frames; }
   }
-  spectralEdit(mode, regions, db) { if (!this.audio.frames || !regions.length) return false; this.pushUndo(); spectralEdit(this.audio, regions, mode, db); return true; }
+  spectralEdit(mode, regions, db) { if (!this.audio.frames || !regions.length) return false; this.pushUndo(mode === 'cut' ? 'Spectral cut' : 'Spectral amp'); spectralEdit(this.audio, regions, mode, db); return true; }
   spectralCopy(r) { const c = spectralCopy(this.audio, r); if (c) this.sclip = c; return !!c; }
-  spectralPaste(atFrame, destHz) { if (!this.sclip || !this.audio.frames) return false; this.pushUndo(); spectralPaste(this.audio, this.sclip, atFrame, destHz); return true; }
+  spectralPaste(atFrame, destHz) { if (!this.sclip || !this.audio.frames) return false; this.pushUndo('Spectral paste'); spectralPaste(this.audio, this.sclip, atFrame, destHz); return true; }
   snapToZero(pos, radius) {
     const n = this.audio.frames; if (n < 2) return pos; pos = Math.min(pos, n - 1); const m = i => .5 * (this.audio.l[i] + this.audio.r[i]);
     for (let d = 0; d <= radius; ++d) { if (pos >= d && pos - d + 1 < n && m(pos - d) * m(pos - d + 1) <= 0) return pos - d; if (pos + d + 1 < n && m(pos + d) * m(pos + d + 1) <= 0) return pos + d; }
@@ -382,6 +391,158 @@ class Recorder {
   captureLast(seconds) { const o = new Audio(this.sr), want = Math.min(this.filled, Math.round(seconds * this.sr)); o.l = new Float32Array(want); o.r = new Float32Array(want); for (let i = 0; i < want; ++i) { const k = (this.w + this.cap - want + i) % this.cap; o.l[i] = this.ring[0][k]; o.r[i] = this.ring[1][k]; } return o; }
 }
 
-const MC = { peakOverviewCh, spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
+// ---------- v4: resampling, time stretch, pitch shift, pitch and tempo detection, channel and format tools (JavaScript only for now) ----------
+const sincw = x => x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
+// out[i] reads the input at i / ratio. ratio = outRate / inRate. Windowed sinc, 10 zero crossings each side (more when filtering down).
+function resampleCh(x, outLen, ratio) {
+  const n = x.length, o = new Float32Array(outLen); if (!n || !outLen) return o; if (Math.abs(ratio - 1) < 1e-9 && outLen === n) return x.slice();
+  const fc = Math.min(1, ratio), kw = Math.ceil(10 / fc);
+  for (let i = 0; i < outLen; ++i) {
+    const p = i / ratio, k0 = Math.floor(p); let s = 0;
+    for (let k = k0 - kw + 1; k <= k0 + kw; ++k) { if (k < 0 || k >= n) continue; const d = p - k; s += x[k] * sincw(d * fc) * (.5 + .5 * Math.cos(Math.PI * d / kw)); }
+    o[i] = s * fc;
+  }
+  return o;
+}
+const isMonoAudio = a => { for (let i = 0; i < a.frames; ++i) if (a.l[i] !== a.r[i]) return false; return true; };
+function perChannel(a, fn) { const o = new Audio(a.sr); o.l = fn(a.l, 0); o.r = isMonoAudio(a) ? o.l.slice() : fn(a.r, 1); return o; }
+function resample(a, newSr) { const ratio = newSr / a.sr, n = Math.round(a.frames * ratio), o = new Audio(newSr); o.l = resampleCh(a.l, n, ratio); o.r = isMonoAudio(a) ? o.l.slice() : resampleCh(a.r, n, ratio); return o; }
+// Phase vocoder time stretch with peak phase locking. factor = output length / input length. Pitch stays.
+function pvStretch(x, factor) {
+  const n = x.length, N = SN, Hs = 512, Ha = Hs / factor, outLen = Math.max(1, Math.round(n * factor)), K = N / 2 + 1;
+  if (n < 64) return resampleCh(x, outLen, outLen / Math.max(1, n));
+  const base = N, out = new Float64Array(outLen + 3 * N), nrm = new Float64Array(outLen + 3 * N), re = new Float64Array(N), im = new Float64Array(N);
+  const mag = new Float64Array(K), ph = new Float64Array(K), pph = new Float64Array(K), sph = new Float64Array(K), nph = new Float64Array(K), pk = [];
+  let prevSt = 0; const frames = Math.ceil(outLen / Hs) + 3, TP = 2 * Math.PI;
+  for (let j = 0; j < frames; ++j) {
+    const st = Math.round(j * Ha) - N / 2, os = j * Hs - N / 2;
+    for (let i = 0; i < N; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; }
+    fft(re, im);
+    for (let k = 0; k < K; ++k) { mag[k] = Math.hypot(re[k], im[k]); ph[k] = Math.atan2(im[k], re[k]); }
+    if (j === 0) sph.set(ph);
+    else {
+      const ha = st - prevSt; pk.length = 0;
+      for (let k = 0; k < K; ++k) { const m = mag[k]; if (m > 1e-9 && m >= (k > 0 ? mag[k - 1] : 0) && m >= (k > 1 ? mag[k - 2] : 0) && m >= (k + 1 < K ? mag[k + 1] : 0) && m >= (k + 2 < K ? mag[k + 2] : 0)) pk.push(k); }
+      if (!pk.length) sph.set(ph);
+      else {
+        for (const k of pk) { const ex = TP * k * ha / N; let d = ph[k] - pph[k] - ex; d -= TP * Math.round(d / TP); nph[k] = sph[k] + (ex + d) / ha * Hs; }
+        let pi = 0; for (let k = 0; k < K; ++k) { while (pi + 1 < pk.length && Math.abs(pk[pi + 1] - k) < Math.abs(pk[pi] - k)) ++pi; const p = pk[pi]; sph[k] = nph[p] + (ph[k] - ph[p]); }
+      }
+    }
+    pph.set(ph); prevSt = st;
+    for (let k = 0; k < K; ++k) { re[k] = mag[k] * Math.cos(sph[k]); im[k] = mag[k] * Math.sin(sph[k]); if (k > 0 && k < N / 2) { re[N - k] = re[k]; im[N - k] = -im[k]; } }
+    im[0] = 0; im[N / 2] = 0; ifft(re, im);
+    for (let i = 0; i < N; ++i) { const q = base + os + i; if (q >= 0 && q < out.length) { out[q] += re[i] * SWIN[i]; nrm[q] += SWIN[i] * SWIN[i]; } }
+  }
+  const o = new Float32Array(outLen); for (let i = 0; i < outLen; ++i) o[i] = out[base + i] / Math.max(.1, nrm[base + i]); return o;
+}
+// Gives y the spectral envelope (the vowel shape, the formants) of x, moved by fs semitones. x and y have the same length.
+function formantCorrect(x, y, fs) {
+  const n = y.length, N = SN, K = N / 2 + 1, W = 14, o = new Float64Array(n + 3 * N), nr = new Float64Array(n + 3 * N), fr = Math.pow(2, (fs || 0) / 12);
+  const r1 = new Float64Array(N), i1 = new Float64Array(N), r2 = new Float64Array(N), i2 = new Float64Array(N), m1 = new Float64Array(K), m2 = new Float64Array(K), c1 = new Float64Array(K + 1), c2 = new Float64Array(K + 1), e1 = new Float64Array(K), e2 = new Float64Array(K);
+  const env = (m, c, e) => { c[0] = 0; for (let k = 0; k < K; ++k) c[k + 1] = c[k] + m[k] * m[k]; for (let k = 0; k < K; ++k) { const a = Math.max(0, k - W), b = Math.min(K - 1, k + W); e[k] = Math.sqrt((c[b + 1] - c[a]) / (b - a + 1)); } };
+  for (let st = -N; st < n; st += SH) {
+    let any = false; for (let i = 0; i < N; ++i) { const p = st + i, w = SWIN[i], a = p >= 0 && p < n ? x[p] : 0, b = p >= 0 && p < n ? y[p] : 0; r1[i] = a * w; r2[i] = b * w; i1[i] = i2[i] = 0; if (b !== 0) any = true; }
+    if (!any) continue; fft(r1, i1); fft(r2, i2);
+    for (let k = 0; k < K; ++k) { m1[k] = Math.hypot(r1[k], i1[k]); m2[k] = Math.hypot(r2[k], i2[k]); } env(m1, c1, e1); env(m2, c2, e2);
+    for (let k = 0; k < K; ++k) { const pos = k / fr, k0 = Math.floor(pos), f = pos - k0, tgt = k0 + 1 < K ? e1[k0] * (1 - f) + e1[k0 + 1] * f : (k0 < K ? e1[k0] : 0); const g = Math.min(8, Math.max(.05, tgt / Math.max(e2[k], 1e-7))); r2[k] *= g; i2[k] *= g; if (k > 0 && k < N / 2) { r2[N - k] *= g; i2[N - k] *= g; } }
+    ifft(r2, i2); for (let i = 0; i < N; ++i) { const q = st + i + N; if (q >= 0 && q < o.length) { o[q] += r2[i] * SWIN[i]; nr[q] += SWIN[i] * SWIN[i]; } }
+  }
+  const out = new Float32Array(n); for (let i = 0; i < n; ++i) out[i] = nr[i + N] > .1 ? o[i + N] / nr[i + N] : y[i]; return out;
+}
+// formant: 0 follows the pitch (the voice gets smaller or bigger), 1 keeps the original formants, moved by fshift semitones.
+function pitchShiftCh(x, semis, formant, fshift) {
+  const n = x.length; if (!n) return x.slice(); const r = Math.pow(2, semis / 12); let y = x.slice();
+  if (Math.abs(semis) > 1e-4) y = resampleCh(pvStretch(x, r), n, 1 / r);
+  if (formant && (Math.abs(semis) > 1e-4 || Math.abs(fshift || 0) > 1e-4)) y = formantCorrect(x, y, fshift || 0);
+  return y;
+}
+function pitchShift(a, semis, formant, fshift) { return perChannel(a, x => pitchShiftCh(x, semis, formant, fshift)); }
+// Pitch shifts frames [s, e) only; 15 ms cross fades hide the joins.
+function pitchShiftRange(a, s, e, semis, formant, fshift) {
+  e = Math.min(e, a.frames); if (e - s < 256) return; const pad = Math.min(4096, s, a.frames - e), s0 = s - pad, e0 = e + pad, seg = pitchShift(a.slice(s0, e0), semis, formant, fshift), f = Math.min(Math.round(.015 * a.sr), (e - s) >> 1);
+  for (let i = s; i < e; ++i) { const k = i - s, t = Math.min(1, k / f, (e - 1 - i) / f), w = t * t * (3 - 2 * t); a.l[i] = a.l[i] * (1 - w) + seg.l[i - s0] * w; a.r[i] = a.r[i] * (1 - w) + seg.r[i - s0] * w; }
+}
+// Tempo change: ratio = speed multiplier (more is faster and shorter). mode: 0 stretch (pitch kept), 1 repitch, 2 beats (hits stay sharp), 3 texture (grains).
+function warpCh(x, ratio, mode, sr, hits) {
+  const n = x.length, outLen = Math.max(1, Math.round(n / ratio)); if (Math.abs(ratio - 1) < 1e-6) return x.slice();
+  if (mode === 1) return resampleCh(x, outLen, 1 / ratio);
+  if (mode === 3) { const G = Math.round(.09 * sr), hop = G >> 2, o = new Float32Array(outLen + G), r = rng(); for (let g = 0; g * hop < outLen; ++g) { const op = g * hop, sp = Math.round(op * ratio + (r() - .5) * G * .35); for (let i = 0; i < G; ++i) { const q = sp + i; if (q < 0 || q >= n) continue; o[op + i] += x[q] * (.5 - .5 * Math.cos(2 * Math.PI * i / G)) * .5; } } return o.slice(0, outLen); }
+  if (mode === 2 && hits && hits.length) {
+    const o = new Float32Array(outLen), cuts = [0].concat(hits.filter(h => h > 0 && h < n), [n]); const hd = Math.round(.03 * sr), xf = 256;
+    for (let c = 0; c + 1 < cuts.length; ++c) {
+      const a = cuts[c], b = cuts[c + 1], L = b - a, O = Math.round(a / ratio), Lt = Math.min(Math.round(b / ratio) - O, outLen - O); if (Lt <= 0) continue; const seg = x.subarray(a, b);
+      const S = L < 3000 || Lt < 3000 ? resampleCh(seg, Lt, Lt / L) : pvStretch(seg, Lt / L); for (let i = 0; i < Lt; ++i) o[O + i] = S[i];
+      if (L >= 3000 && Lt >= 3000) { const hdn = Math.min(hd, L, Lt); for (let i = 0; i < hdn; ++i) { const t = i < hdn - xf ? 0 : (i - (hdn - xf)) / xf; o[O + i] = seg[i] * (1 - t) + S[i] * t; } }
+      const fo = Math.min(48, Lt); for (let i = 0; i < fo; ++i) o[O + Lt - 1 - i] *= i / fo;
+    }
+    return o;
+  }
+  return pvStretch(x, 1 / ratio);
+}
+// o = { ratio, mode, semis, cents, formant, fshift, hits }
+function warpAudio(a, o) {
+  let r = o.ratio && Math.abs(o.ratio - 1) > 1e-6 ? perChannel(a, x => warpCh(x, o.ratio, o.mode | 0, a.sr, o.hits)) : a.clone(); const st = (o.semis || 0) + (o.cents || 0) / 100;
+  if (Math.abs(st) > 1e-4 || ((o.fshift || 0) && o.formant)) r = pitchShift(r, st, o.formant, o.fshift || 0); return r;
+}
+// Pitch track (YIN) on a 12 kHz mono copy. midi is NaN where there is no clear pitch.
+function detectPitch(a) {
+  const D = Math.max(1, Math.round(a.sr / 12000)), sr2 = a.sr / D, m = Math.floor(a.frames / D), x = new Float32Array(m);
+  for (let i = 0; i < m; ++i) { let s = 0; for (let d = 0; d < D; ++d) s += .5 * (a.l[i * D + d] + a.r[i * D + d]); x[i] = s / D; }
+  const W = 512, hop = 128, tmin = Math.max(2, Math.floor(sr2 / 1500)), tmax = Math.ceil(sr2 / 60), F = Math.max(0, Math.floor((m - W - tmax) / hop) + 1), mid = new Float32Array(F).fill(NaN), t = new Float32Array(F), d = new Float64Array(tmax + 2), cm = new Float64Array(tmax + 2);
+  for (let f = 0; f < F; ++f) {
+    const t0 = f * hop; let e = 0; for (let j = 0; j < W; ++j) e += x[t0 + j] * x[t0 + j]; t[f] = (t0 + W / 2 + 100) * D; if (Math.sqrt(e / W) < .004) continue;
+    for (let tau = 1; tau <= tmax; ++tau) { let s = 0; for (let j = 0; j < W; ++j) { const v = x[t0 + j] - x[t0 + j + tau]; s += v * v; } d[tau] = s; }
+    let run = 0; cm[0] = 1; for (let tau = 1; tau <= tmax; ++tau) { run += d[tau]; cm[tau] = run > 0 ? d[tau] * tau / run : 1; }
+    let best = -1; for (let tau = tmin; tau < tmax; ++tau) { if (cm[tau] < .15) { while (tau + 1 < tmax && cm[tau + 1] < cm[tau]) ++tau; best = tau; break; } }
+    if (best < 0) { let mn = 1e9, mt = -1; for (let tau = tmin; tau < tmax; ++tau) if (cm[tau] < mn) { mn = cm[tau]; mt = tau; } if (mn < .25) best = mt; }
+    if (best < 0) continue; let tau = best; if (best > 1 && best < tmax) { const a0 = cm[best - 1], b0 = cm[best], c0 = cm[best + 1], den = a0 - 2 * b0 + c0; if (Math.abs(den) > 1e-12) tau = best + .5 * (a0 - c0) / den; }
+    mid[f] = 69 + 12 * Math.log2(sr2 / tau / 440); t[f] = (t0 + W / 2 + tau / 2) * D;
+  }
+  return { t, midi: mid, hop: hop * D };
+}
+// Groups the pitch track into notes: [{ t0, t1, m }] with m the middle pitch in (fractional) MIDI notes.
+function detectNotes(a) {
+  const p = detectPitch(a), F = p.midi.length, sm = new Float32Array(F).fill(NaN);
+  for (let f = 0; f < F; ++f) { const v = []; for (let k = -2; k <= 2; ++k) { const q = p.midi[f + k]; if (q === q) v.push(q); } if (p.midi[f] === p.midi[f] && v.length >= 3) { v.sort((x, y) => x - y); sm[f] = v[v.length >> 1]; } }
+  const notes = []; let cur = null, gap = 0; const med = v => { const s = v.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+  const close = () => { if (cur && cur.v.length >= 4) notes.push({ t0: Math.max(0, Math.round(cur.t0 - p.hop / 2)), t1: Math.min(a.frames, Math.round(cur.t1 + p.hop / 2)), m: med(cur.v) }); cur = null; };
+  for (let f = 0; f < F; ++f) {
+    const v = sm[f]; if (v !== v) { if (cur && ++gap > 2) close(); continue; } gap = 0;
+    if (cur && Math.abs(v - med(cur.v.slice(-8))) > .75) close();
+    if (!cur) cur = { t0: p.t[f], t1: p.t[f], v: [v] }; else { cur.t1 = p.t[f]; cur.v.push(v); }
+  }
+  close(); return { notes, track: p };
+}
+// Tempo from the hits: autocorrelation of the onset curve, 60 to 200 bpm, leaning towards the usual 90 to 160. null when the sound is too short.
+function detectBpm(a) {
+  const hop = 256, F = Math.floor(a.frames / hop); if (F < 90) return null; const e = new Float32Array(F), fl = new Float32Array(F);
+  for (let f = 0; f < F; ++f) { let s = 0; for (let i = 0; i < hop; ++i) { const v = .5 * (a.l[f * hop + i] + a.r[f * hop + i]); s += v * v; } e[f] = Math.sqrt(s / hop); }
+  for (let f = 1; f < F; ++f) fl[f] = Math.max(0, e[f] - e[f - 1]);
+  const fps = a.sr / hop, lo = Math.floor(fps * 60 / 200), hi = Math.min(Math.ceil(fps * 60 / 60), F >> 1); if (hi <= lo + 2) return null; const ac = new Float64Array(hi + 2);
+  for (let lag = lo - 1; lag <= hi + 1; ++lag) { let s = 0; for (let i = 0; i + lag < F; ++i) s += fl[i] * fl[i + lag]; ac[lag] = s / (F - lag); }
+  let best = -1, bv = 0; for (let lag = lo; lag <= hi; ++lag) { const bpm = 60 * fps / lag, w = Math.exp(-.5 * Math.pow(Math.log2(bpm / 120) / .9, 2)), v = ac[lag] * w; if (v > bv && ac[lag] >= ac[lag - 1] && ac[lag] >= ac[lag + 1]) { bv = v; best = lag; } }
+  if (best < 0 || bv <= 0) return null; let lag = best; const a0 = ac[best - 1], b0 = ac[best], c0 = ac[best + 1], den = a0 - 2 * b0 + c0; if (Math.abs(den) > 1e-20) lag += .5 * (a0 - c0) / den;
+  return Math.round(600 * fps / lag) / 10;
+}
+// Bit depth: rounds to the steps of a smaller word, with a little triangular noise first when dither is on.
+function quantize(a, bits, dither) { const q = Math.pow(2, bits - 1), r = rng(); for (const x of [a.l, a.r]) for (let i = 0; i < x.length; ++i) { let v = x[i] * q; if (dither) v += r() - r(); x[i] = clampf(Math.round(v) / q, -1, (q - 1) / q); } }
+// kind: mix (left plus right), left, right, swap, enc (left right to mid side), dec (mid side to left right)
+function channelOp(a, kind) { for (let i = 0; i < a.frames; ++i) { const l = a.l[i], r = a.r[i]; switch (kind) { case 'mix': a.l[i] = a.r[i] = .5 * (l + r); break; case 'left': a.r[i] = l; break; case 'right': a.l[i] = r; break; case 'swap': a.l[i] = r; a.r[i] = l; break; case 'enc': a.l[i] = .5 * (l + r); a.r[i] = .5 * (l - r); break; case 'dec': a.l[i] = l + r; a.r[i] = l - r; break; } } }
+
+
+
+// ---- pencil: draw a tone into the sound (spectral pencil) or set samples (waveform pencil)
+function pencilTone(a, f0, f1, hz0, hz1, amp, ph, fi, fo) {
+  f0 = Math.max(0, Math.floor(f0)); f1 = Math.min(a.frames, Math.ceil(f1)); const n = f1 - f0; if (n <= 0) return ph; const w = 2 * Math.PI / a.sr;
+  for (let i = 0; i < n; ++i) { const hz = hz0 + (hz1 - hz0) * (i / n); ph += w * hz; let g = amp; if (fi && i < fi) g *= i / fi; if (fo && i >= n - fo) g *= (n - i) / fo; const v = Math.sin(ph) * g; a.l[f0 + i] = Math.max(-1, Math.min(1, a.l[f0 + i] + v)); a.r[f0 + i] = Math.max(-1, Math.min(1, a.r[f0 + i] + v)); }
+  return ph % (2 * Math.PI);
+}
+function pencilWave(a, f0, v0, f1, v1, lane) { // lane: -1 both sides, 0 left, 1 right
+  if (f1 < f0) { let t = f0; f0 = f1; f1 = t; t = v0; v0 = v1; v1 = t; } f0 = Math.floor(f0); f1 = Math.floor(f1);
+  for (let f = Math.max(0, f0); f <= Math.min(a.frames - 1, f1); ++f) { const t = f1 === f0 ? 1 : (f - f0) / (f1 - f0), v = Math.max(-1, Math.min(1, v0 + (v1 - v0) * t)); if (lane !== 1) a.l[f] = v; if (lane !== 0) a.r[f] = v; }
+}
+
+const MC = { pencilTone, pencilWave, resample, resampleCh, pvStretch, pitchShift, pitchShiftRange, formantCorrect, warpAudio, detectPitch, detectNotes, detectBpm, quantize, channelOp, isMonoAudio, peakOverviewCh, spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
 if (typeof module !== 'undefined' && module.exports) module.exports = MC; else root.MC = MC;
 })(typeof window !== 'undefined' ? window : globalThis);

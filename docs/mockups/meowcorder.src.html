@@ -16,7 +16,7 @@ body { margin: 0; background: var(--ground); color: var(--ink); font-family: var
   padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .viewport { overflow: auto; max-width: 100%; display: flex; }
 .stage { position: relative; margin: 0 auto; flex: none; padding: 7px; }
-.unit { width: 1240px; transform-origin: 0 0; position: absolute; left: 7px; top: 7px; display: grid; grid-template-columns: 34px minmax(0,1fr) 34px; box-shadow: 0 30px 80px #000c; border-radius: 4px; overflow: hidden; }
+.unit { width: 1400px; transform-origin: 0 0; position: absolute; left: 7px; top: 7px; display: grid; grid-template-columns: 34px minmax(0,1fr) 34px; box-shadow: 0 30px 80px #000c; border-radius: 4px; overflow: hidden; }
 .cheek { cursor: default; background: repeating-linear-gradient(90deg,rgba(0,0,0,.22) 0 1px,rgba(0,0,0,.06) 1px 2px,rgba(0,0,0,.14) 2px 3px,rgba(0,0,0,.05) 3px 5px,rgba(0,0,0,.2) 5px 6px,rgba(0,0,0,.08) 6px 8px),linear-gradient(90deg,#3d2210 0%,#7b4a26 40%,#5a3419 75%,#3d2210 100%); }
 .cheek.l { box-shadow: inset -4px 0 8px rgba(0,0,0,.6); }
 .cheek.r { box-shadow: inset 0 0 0 1px rgba(0,0,0,.45); }
@@ -89,6 +89,7 @@ canvas { display: block; width: 100%; }
 #main { height: 212px; cursor: crosshair; }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: #0b0b0dd9; text-align: center; font-size: 17px; z-index: 2; }
 .overlay button { font-size: 16px; padding: 12px 22px; border-color: var(--pink); background: #ff138322; }
+.dispwrap .overlay { inset: 0 0 auto 0; height: 34px; display: flex; align-items: center; justify-content: center; gap: 14px; background: #0b0b0df2; font-size: 14px; } .dispwrap .overlay > div { display: flex; align-items: center; gap: 14px; } .dispwrap .overlay button { font-size: 13px; padding: 4px 16px; } .dispwrap .overlay small { margin: 0; font-size: 12px; }
 .overlay small { display: block; color: var(--ink-dim); margin-top: 8px; font-size: 13px; letter-spacing: .04em; }
 .dropnote { position: absolute; right: 8px; top: 5px; font-size: 12px; color: var(--ink-dim); pointer-events: none; text-transform: uppercase; letter-spacing: .1em; }
 .dropnote.hot, .dispwrap.hot { color: var(--pink); } .dispwrap.hot { outline: 2px dashed var(--pink); outline-offset: -3px; }
@@ -240,6 +241,28 @@ header.top { grid-template-columns: auto minmax(0,1fr); padding-bottom: 6px; }
 .oppop .knobs { display: flex; flex-wrap: wrap; gap: 8px 4px; min-height: 90px; }
 .oppop .acts { display: flex; gap: 6px; margin-top: 8px; } .oppop .acts button { flex: 1; }
 .spectools .seg.tools button { padding: 3px 8px; } .spectools .seg.tools svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* v4: view layers, info bar, pop layer, warp and history */
+.unit { overflow: hidden; } #popLayer { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 85; }
+#popLayer > .dd { position: absolute; top: 0; left: 0; margin: 0; }
+.dd .dd { top: -5px; left: calc(100% - 2px); } .dd .dd.flip { left: auto; right: calc(100% - 2px); } .dd .mh { padding: 5px 8px 2px; font-size: 11px; color: var(--ink-dim); letter-spacing: .14em; text-transform: uppercase; } .dd .mh.det { color: var(--green); text-transform: none; letter-spacing: .02em; font-family: var(--f-num); }
+.dd.scroll { max-height: 70vh; overflow: auto; }
+.dispcol { grid-template-rows: auto auto 1fr; } .infobar { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; padding: 0 2px 2px; } .infobar .sp { width: 8px; }
+.chip { font-family: var(--f-num); font-size: 11.5px; padding: 3px 8px; text-transform: none; letter-spacing: 0; background: #181a20; border: 1px solid var(--line); border-radius: 3px; color: var(--ink); font-weight: 400; white-space: nowrap; }
+.chip::after { content: " \25BE"; color: var(--ink-dim); } .chip.plain::after { content: ""; } .chip:hover { border-color: #50535f; background: #20222a; } .chip .d { color: var(--ink-dim); } .chip.hot { border-color: var(--pink); color: #fff; background: #ff138322; }
+.viewbar { display: flex; gap: 8px; align-items: center; padding: 4px 8px; background: #101216; border-bottom: 1px solid var(--line); flex-wrap: wrap; } .viewbar label { font-size: 11px; color: var(--ink-dim); letter-spacing: .12em; text-transform: uppercase; }
+.viewbar .seg button { padding: 3px 11px; font-size: 12px; text-transform: none; letter-spacing: .03em; } .viewbar .seg button.front { box-shadow: inset 0 -2px 0 var(--yellow); }
+.viewbar .sp { flex: 1; } .viewbar .ib { width: 28px; height: 24px; } .viewbar .ib svg { width: 16px; height: 16px; }
+.dv { position: relative; height: 470px; background: #0a0a0c; overflow: hidden; } .dv canvas { position: absolute; left: 0; width: 100%; display: block; pointer-events: none; } .dv canvas.act { pointer-events: auto; } .dv canvas[hidden] { display: none; }
+#wave, #spec, #pitch { height: 100%; } #ruler { height: 22px; border-top: 1px solid var(--line); cursor: pointer; }
+.spectools .hint { flex: 1; min-width: 160px; } .viewtools .spectools { border-top: 0; border-bottom: 1px solid var(--line); }
+.oppop.wide { width: 560px; } .oppop { max-height: 80vh; overflow: auto; }
+.scoperow { display: flex; align-items: center; gap: 10px; margin-top: 6px; } .scoperow .seg { width: 230px; } .scoperow #mixSlot { margin-left: auto; } .scoperow .knobwrap { width: 60px; }
+.warpk .knob, #warpK > * { min-width: 92px; } #warpK { display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; } .warprow { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 4px; } .warprow .choice { min-width: 0; flex: 1 1 auto; } .warprow .seg button { font-size: 11px; padding: 4px 6px; white-space: nowrap; }
+#warpInfo { margin-top: 4px; min-height: 16px; }
+.hlist { display: grid; gap: 1px; max-height: 360px; overflow: auto; font-family: var(--f-num); font-size: 12.5px; } .hlist button { text-align: left; text-transform: none; letter-spacing: 0; font-weight: 400; border: 0; background: transparent; padding: 4px 8px; border-radius: 2px; display: flex; gap: 8px; } .hlist button:hover { background: #23262e; } .hlist button.cur { background: #02ebba22; color: var(--green); } .hlist button.und { color: #6b6f7c; } .hlist button i { color: var(--ink-dim); font-style: normal; min-width: 24px; text-align: right; }
+.kbdnote { font-size: 12px; color: var(--ink-dim); margin-top: 6px; }
+.modal select { width: auto; } .modal .row2 { display: grid; grid-template-columns: 150px 1fr 1fr; gap: 8px; align-items: center; margin: 4px 0; font-size: 13px; } .modal .row2 b { font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; } .modal h4 { margin: 10px 0 4px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
 </style>
 
 <div class="viewport"><div class="stage" id="stage"><div class="unit" id="unit">
@@ -277,7 +300,7 @@ header.top { grid-template-columns: auto minmax(0,1fr); padding-bottom: 6px; }
         <div class="ctlR"><div class="opgrid" id="oplist"></div><div class="hint oph" id="opHint"></div></div>
         <div class="itools" id="itools">
           <button class="ib" id="bNew" data-ic="new"></button><button class="ib" id="bOpen" data-ic="open"></button><button class="ib" id="bSave" data-ic="save"></button><span class="sep"></span>
-          <button class="ib" id="bUndo" data-ic="undo"></button><button class="ib" id="bRedo" data-ic="redo"></button><span class="sep"></span>
+          <button class="ib" id="bUndo" data-ic="undo"></button><button class="ib" id="bRedo" data-ic="redo"></button><button class="ib" id="bHist" data-ic="hist"></button><span class="sep"></span>
           <button class="ib" id="bCut" data-ic="cut"></button><button class="ib" id="bCopy" data-ic="copy"></button><button class="ib" id="bPaste" data-ic="paste"></button><button class="ib" id="bDel" data-ic="del"></button><button class="ib" id="bCrop" data-ic="crop"></button><span class="sep"></span>
           <button class="ib" id="bAll" data-ic="all"></button><button class="ib" id="bSnap" data-ic="snap"></button><span class="sep"></span>
           <button class="ib" id="bZin" data-ic="zin"></button><button class="ib" id="bZout" data-ic="zout"></button><button class="ib" id="bFit" data-ic="fit"></button><button class="ib" id="bSel" data-ic="tosel"></button><span class="sep"></span>
@@ -290,11 +313,20 @@ header.top { grid-template-columns: auto minmax(0,1fr); padding-bottom: 6px; }
 
       <div class="dispcol">
         <div class="readout" id="readout"></div>
+        <div class="infobar" id="infobar"></div>
         <div class="box dispwrap" id="dispwrap">
           <canvas id="live" width="1000" height="34" data-tip="Input, always listening: the last 3 seconds. The pink band is the pre-roll that a recording would include."></canvas>
-          <canvas id="wave" width="1000" height="340" data-tip="The sound, stereo or mono. Drag to select, click to place the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll. Operations work on the selection, or on everything when nothing is selected."></canvas>
-          <div class="spectools" id="spectools" hidden><div class="seg tools" id="toolSeg"></div><label>Amp <select id="ampdb" data-tip="Level change the Amp tool applies to the box."><option value="-24">-24 dB</option><option value="-12">-12 dB</option><option value="-6">-6 dB</option><option value="-3">-3 dB</option><option value="3">+3 dB</option><option value="6" selected>+6 dB</option><option value="12">+12 dB</option></select></label><label>Brush <select id="brush" data-tip="Size of the Eraser brush."><option value="6">Small</option><option value="12" selected>Medium</option><option value="24">Large</option></select></label><span class="hint" id="toolHint"></span></div>
-          <canvas id="spec" width="1000" height="200" data-tip="Spectral view of what you see above. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level. Pick a tool above it to change the sound by looking at it."></canvas>
+          <div class="viewbar" id="viewbar"></div>
+          <div class="viewtools" id="viewtools">
+            <div class="spectools" id="spectools" hidden><div class="seg tools" id="toolSeg"></div><label>Amp <select id="ampdb" data-tip="Level change the Amp tool applies to the box."><option value="-24">-24 dB</option><option value="-12">-12 dB</option><option value="-6">-6 dB</option><option value="-3">-3 dB</option><option value="3">+3 dB</option><option value="6" selected>+6 dB</option><option value="12">+12 dB</option></select></label><label>Pen <select id="pdb" data-tip="Level of the tone the Pencil draws."><option value="-36">-36 dB</option><option value="-24">-24 dB</option><option value="-18" selected>-18 dB</option><option value="-12">-12 dB</option><option value="-6">-6 dB</option></select></label><label>Brush <select id="brush" data-tip="Size of the Eraser brush."><option value="6">Small</option><option value="12" selected>Medium</option><option value="24">Large</option></select></label><span class="hint" id="toolHint"></span></div>
+            <div class="spectools" id="pitchtools" hidden><button id="pSnapAll" data-tip="Moves every note to the nearest exact semitone. Like a tuner for the whole sound, or for the selection.">Snap notes to semitones</button><div class="seg" id="pFormSeg"><button data-v="0" data-tip="The voice character moves with the pitch, like speeding a tape.">Formants follow</button><button data-v="1" data-tip="Keeps the voice character (the formants) while the pitch changes. Best for voices and instruments.">Keep formants</button></div><label>Drag <select id="pSnap" data-tip="How a dragged note lands."><option value="1" selected>Whole semitones</option><option value="0">Free (cents)</option></select></label><span class="hint" id="pitchHint">Drag a note up or down to change its pitch. Double click a note to snap it.</span></div>
+          </div>
+          <div class="dv" id="dv">
+            <canvas id="wave" width="1000" height="400" data-tip="The sound, stereo or mono. Drag to select, click to place the cursor, Shift click to extend, wheel to zoom, Alt wheel to scroll. Operations work on the selection, or on everything when nothing is selected."></canvas>
+            <canvas id="spec" width="1000" height="400" data-tip="Spectral view. Horizontal: time. Vertical: frequency, 20 Hz at the bottom, log scale. Colour is level. Pick a tool above it to change the sound by looking at it."></canvas>
+            <canvas id="pitch" width="1000" height="400" data-tip="Pitch view, like a piano roll: the notes found in the sound. Drag a note up or down to change its pitch."></canvas>
+          </div>
+          <canvas id="ruler" width="1000" height="22" data-tip="Time line. Click to place the cursor. The unit (time, seconds, samples, bars and beats) is set in the bar above the display."></canvas>
           <canvas id="ovw" width="1000" height="34" data-tip="The whole sound. The lighter box is what you see above. Drag it to scroll, click to jump, wheel to zoom."></canvas>
           <div class="overlay" id="overlay"><div><button id="bStart">Start audio</button><small>Everything is made inside this page. Nothing is sent anywhere.</small></div></div>
         </div>
@@ -304,13 +336,29 @@ header.top { grid-template-columns: auto minmax(0,1fr); padding-bottom: 6px; }
     <div class="oppop" id="oppop" hidden>
       <h3><span id="opName">Gain</span><button class="ib sm" id="bOpClose" aria-label="Close" data-tip="Close the settings. Esc.">&#10005;</button></h3>
       <div class="optip" id="opTip"></div><div class="knobs" id="opK"></div>
+      <div class="scoperow"><span class="hint">Apply to</span><div class="seg" id="scopeSeg"><button data-v="sel" data-tip="Only the part you selected. With nothing selected, everything is used.">Selection</button><button data-v="all" data-tip="The whole sound, even when something is selected.">Whole sound</button></div><div id="mixSlot"></div></div>
       <div class="acts"><button id="bPrev" data-tip="Listen to the result on the selection without changing the sound. P.">Preview</button><button id="bApply" class="go" data-tip="Apply to the selection, or to everything when nothing is selected. Ctrl+Enter. Undo brings the old sound back.">Apply</button></div>
+    </div>
+    <div class="oppop" id="histpop" hidden>
+      <h3><span>History</span><button class="ib sm" id="bHistClose" aria-label="Close" data-tip="Close the history. Esc.">&#10005;</button></h3>
+      <div class="optip">Every step since the sound was loaded. Click a step to go back (or forward) to it. This list is Meowcorder's own, your DAW's undo is not touched.</div>
+      <div class="hlist" id="hlist"></div>
+    </div>
+    <div class="oppop wide" id="warppop" hidden>
+      <h3><span>Warp, tempo and pitch</span><button class="ib sm" id="bWarpClose" aria-label="Close" data-tip="Close the warp settings. Esc.">&#10005;</button></h3>
+      <div class="optip" id="warpTip"></div>
+      <div class="warprow"><div class="choice"><label>Sync</label><div class="seg" id="wSync"><button data-v="0" data-tip="Free: the sound plays at its own speed, not warped.">Free</button><button data-v="1" data-tip="Plays the sound so that its tempo matches the host tempo.">Sync to host</button></div></div><div class="choice"><label>Warp mode</label><div class="seg" id="wMode"><button data-v="0" data-tip="Changes the tempo without changing the pitch. Good for most things.">Stretch</button><button data-v="1" data-tip="Speeds up or slows down like a record: pitch moves with the tempo. Cleanest sound.">Repitch</button><button data-v="2" data-tip="Keeps every hit sharp and stretches what is between them. For drums and loops.">Beats</button><button data-v="3" data-tip="Overlapping grains. Smooth and a bit blurry. For pads and noise.">Texture</button></div></div><div class="choice"><label>Formants</label><div class="seg" id="wForm"><button data-v="0" data-tip="The voice character moves with the pitch.">Follow</button><button data-v="1" data-tip="Keeps the voice character while the pitch changes.">Keep</button></div></div></div>
+      <div class="knobs" id="warpK"></div>
+      <div class="hint" id="warpInfo"></div>
+      <div class="scoperow"><span class="hint">Bake into</span><div class="seg" id="wScope"><button data-v="sel">Selection</button><button data-v="all">Whole sound</button></div></div>
+      <div class="acts"><button id="bWPrev" data-tip="Listen to the warp on the selection (or everything) without changing the sound.">Preview</button><button id="bWBake" class="go" data-tip="Writes the warp into the sound. Undo brings the old sound back.">Bake in</button><button id="bWReset" data-tip="Back to free, no pitch change.">Reset</button></div>
     </div>
     <select id="inSel" hidden><option value="demo">Mixer channel (demo loop here)</option><option value="mic">Microphone</option></select>
 
     <footer><span>Studio 87 &middot; Meowcorder v0.1 design mockup</span><span>Collects nothing. No network calls. Records only after you press Record.</span></footer>
   </div>
   <div class="cheek r" id="cheekR"></div>
+  <div id="popLayer"></div>
 </div>
 <div class="rh n" data-h="n"></div><div class="rh s" data-h="s"></div><div class="rh e" data-h="e"></div><div class="rh w" data-h="w"></div>
 <div class="rh nw" data-h="nw"></div><div class="rh ne" data-h="ne"></div><div class="rh sw" data-h="sw"></div><div class="rh se" data-h="se"></div>

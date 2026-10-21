@@ -7,3 +7,6 @@ g++ -std=c++17 -O2 -Wall -Wextra -o /tmp/meowcorder_test test_core.cpp
 
 # The spectral editing of the web mockup (STFT based, in docs/mockups/engine.js)
 node ../tools/spectral_test.js
+
+# New v4 DSP: resample, vocoder, pitch, warp, notes, tempo, history, pencils
+node ../tools/dsp_test.js
