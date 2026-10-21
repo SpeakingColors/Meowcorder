@@ -1,0 +1,72 @@
+## Intro
+Meowcorder is a free recorder and sound editor for your music projects, made for Linux first and also for Windows and macOS. It is always listening to its input, so you can grab a sound you just heard, record a new one, cut and shape it, and drop it back into your project. It is part of the Studio 87 cat plugin suite, free and open source (AGPL-3.0-or-later).
+Meowcorder has its own history of steps, separate from your DAW. You can undo, redo and repeat inside Meowcorder as much as you like without changing anything in your project until you drop the result back.
+This manual describes the interface as designed in the interactive mockup. The plugin window is built from that mockup, with the same layout, controls and info bubbles.
+
+## Quick start
+- Press Audio (top right) to start listening. The strip above the display shows the last 3 seconds of input, and the meters on the right show the level.
+- Choose how a recording starts with the Now, On input and Count-in buttons, then press the pink record button. Press it again to stop.
+- Drag over the waveform to select a part. Operations, cut, copy and paste work on the selection. With nothing selected they work on the whole sound.
+- Click an operation (the colour grid at the top right) to open its settings, then press Apply. Double click an operation to apply it at once with its last settings.
+- Press R to repeat the last operation, Ctrl+Z to undo, and Ctrl+Shift+Z to redo, or to apply the last action again when there is nothing to redo.
+- Hover any control for one second to see what it does.
+
+## Recording
+- Now starts at once. On input waits for sound: recording begins when the level passes the Threshold. Count-in plays a click for 1, 2 or 4 bars at the Tempo, then records.
+- The arrow in the meter is the trigger level, the same value as the Threshold knob. Drag it up if background noise starts the recording too early, and down if quiet starts are missed. It only does something in On input mode.
+- Pre-roll adds the sound from just before the trigger, so the start of a sound is not cut off. The pink band on the live strip shows how much.
+- A new take can Replace the sound, Append at the end, Punch over the selection, or Insert at the selection.
+- Grab the last seconds keeps what you already heard even though you were not recording.
+- Record in mono makes new takes mono. The input can be the mixer channel the plugin sits on, or a microphone in the standalone app.
+
+## Editing and history
+- Click places the cursor, drag selects, Shift click extends the selection, double click selects everything. The wheel zooms and Alt+wheel scrolls. The strip at the bottom shows the whole sound, drag its light box to scroll.
+- Cut, copy, paste, delete, crop and Snap to zero crossing work on the selection.
+- Meowcorder keeps its own list of steps. Open History (clock button) to see every step since the sound was loaded and click any step to go back to it, or forward again.
+- Ctrl+Shift+Z redoes a step. When there is nothing to redo it applies the last action again, so you can press it over and over to repeat the same operation.
+
+## Operations
+- 24 operations: gain, normalize, fade in and out, reverse, invert, DC remove, silence, make mono, balance, pitch and speed, bitcrusher, Drive, EQ, filter, delay, chorus, phaser, reverb, compressor, limiter, noise gate, trim silence, make loop.
+- Each one opens a popup with its knobs, a Mix knob for how much of the effect is added, and an Apply to switch: Selection (the default) or Whole sound.
+- Preview plays the result without changing the sound. Apply makes the change and adds a step to the history.
+
+## Views
+- Three views: Waveform, Spectral and Pitch. By default you see one at a time, and the one you see is the one your tools work on.
+- The layers button shows several together. Overlay puts them on top of each other, Split stacks them. In front says which view gets your edits. The others follow live: remove the low end in the spectral view and the waveform below it gets thinner at that spot.
+- Spectral view: frequency goes up, 20 Hz at the bottom and a log scale, time goes right, colour is level. Tools: Mouse, Selector, Scissors, Cutter, Eraser, Copy, Paste, Amp and Pencil. The Eraser works while you paint.
+- Pitch view: a piano roll of the notes Meowcorder found. Drag a note up or down to change its pitch, double click a note to snap it to the nearest semitone, or use Snap notes to semitones for all of them. Choose whether the formants follow the pitch or are kept.
+
+## Pencils
+- Spectral pencil: pick Pencil in the spectral tools and drag forward in time. A pure tone follows your pen and is added to the sound at the Pen level (-36 to -6 dB). A single click adds a short beep. The waveform updates while you draw.
+- Waveform pencil: press Shift+Q or the pencil button in the view bar. It zooms in to single samples. Drag over the wave to draw it. In a stereo sound the lane under the pen is the side that changes. It only draws when you can see single samples; zoom in if it says so.
+- Each stroke is one step in the history, so Ctrl+Z takes it back.
+
+## Timing and warp
+- The time line can show time, seconds, samples, or bars and beats (the Time button in the info bar).
+- Meowcorder listens for the tempo of the sound (the bpm button). Click it to set the tempo yourself, double it, halve it, or say the sound is exactly 1, 2, 4 or 8 bars.
+- Free plays the sound at its own speed. Sync to host plays it at the project tempo. Warp modes: Stretch, Repitch, Beats and Texture.
+- Transpose, Fine tune and Formant change the pitch without changing the length. Bake in puts the warp into the sound; until then it only affects playback.
+
+## Sound info
+- The Channels, kHz and bits buttons show what Meowcorder found in the sound. Click them to change it.
+- Channels: make it mono by mixing both sides, keep only the left or only the right, swap the sides, or split it into mid and side and back.
+- kHz: convert to another sample rate (same sound, new rate), or set the rate only, which changes speed and pitch like a tape.
+- Bits: the bit depth used when you save. Going lower changes the sound, with dither if you want it.
+
+## Play keys
+- Space and Shift+Space play and stop. What each does is yours to choose in Settings under Play keys, for example start from the beginning, resume where it stopped, or play from the cursor.
+- Shortcuts work while Meowcorder has focus. Your DAW may keep some keys for itself; every action is also in the menus.
+
+## Install
+Installers are not built yet; they come with the first plugin release (Windows installer, macOS package, Linux Flatpak). Until then the interactive mockup runs in any browser: open docs/mockups/Meowcorder.html. Everything is made inside the page and nothing is sent anywhere.
+
+## Under the hood
+- The editing engine is plain C++17, tested by 619 checks. The mockup uses a JavaScript copy of it, and a parity test checks that all 24 operations give the same result in both.
+- Spectral edits use a Hann window of 2048 samples with a hop of 512. The spectral pencil adds a sine wave with 3 ms fades at each end.
+- Warp, pitch shifting, tempo detection, note detection, rate conversion and bit depth reduction are JavaScript in the mockup for now (28 checks plus the pencil checks) and move to C++ with the plugin.
+- Warp preview renders the sound first, so a long sound may pause for a moment.
+- Files: WAV in at 8, 16, 24 and 32 bit (integer and float), WAV out at 8, 16, 24 and 32 bit float.
+- Meowcorder collects nothing and makes no network calls.
+
+## Support
+Free and open source. If you like it, you can support it on Ko-fi at ko-fi.com/studio87. Nothing is locked and nothing is collected.
