@@ -143,6 +143,68 @@ struct Display : juce::Component, juce::SettableTooltipClient
     size_t dragFrom = 0;
 };
 
+
+// ---------------- overview strip: the whole sound, with a box for what the display shows ----------------
+struct Overview : juce::Component, juce::SettableTooltipClient
+{
+    MeowProcessor& p; Display& d; std::vector<float> peaks; int seen = -1, seenW = 0; enum Mode { None, Pan, Left, Right } mode = None; double grab = 0; double lastS = -1, lastL = -1;
+    Overview(MeowProcessor& pr, Display& di) : p(pr), d(di) { setTooltip("The whole sound. The lighter box is what you see above. Drag the box to scroll, drag its edges to zoom, click to jump, wheel to zoom."); }
+    size_t frames() const { return p.doc.audio.frames(); }
+    void rebuild()
+    {
+        const int w = getWidth(); peaks.assign((size_t) std::max(w, 1), 0.f); const size_t n = frames(); if (n == 0) return; const auto& a = p.doc.audio;
+        for (int x = 0; x < w; ++x)
+        {
+            const size_t s0 = (size_t) ((double) x / w * (double) n), s1 = std::min(n, std::max(s0 + 1, (size_t) ((double) (x + 1) / w * (double) n))); const size_t step = std::max<size_t>(1, (s1 - s0) / 32); float m = 0;
+            for (size_t i = s0; i < s1; i += step) m = std::max(m, std::max(std::abs(a.ch[0][i]), std::abs(a.ch[1][i])));
+            peaks[(size_t) x] = m;
+        }
+    }
+    float boxX0() const { return (float) (d.vStart / (double) std::max<size_t>(frames(), 1) * getWidth()); }
+    float boxX1() const { return (float) ((d.vStart + d.vLen) / (double) std::max<size_t>(frames(), 1) * getWidth()); }
+    void tick() { if (d.vStart != lastS || d.vLen != lastL) { lastS = d.vStart; lastL = d.vLen; repaint(); } }
+    void paint(Graphics& g) override
+    {
+        g.fillAll(Colour(0xff060608)); g.setColour(kEdge); g.drawRect(getLocalBounds(), 1);
+        if (frames() == 0) return;
+        if (seen != p.version() || seenW != getWidth()) { seen = p.version(); seenW = getWidth(); rebuild(); }
+        const float mid = getHeight() * 0.5f; g.setColour(kDim.withAlpha(0.8f));
+        for (int x = 0; x < (int) peaks.size(); ++x) { const float h = std::max(1.f, peaks[(size_t) x] * mid * 0.9f); g.fillRect((float) x, mid - h, 1.f, h * 2.f); }
+        const float x0 = boxX0(), x1 = std::max(boxX1(), x0 + 3.f); auto box = juce::Rectangle<float>(x0, 1.f, x1 - x0, (float) getHeight() - 2.f);
+        g.setColour(kBlue.withAlpha(0.18f)); g.fillRect(box); g.setColour(kBlue); g.drawRect(box, 1.5f);
+        const float hw = 9.f; auto handle = [&](float x, bool left) { g.setColour(kBlue.withAlpha(0.9f)); g.fillRect(left ? x : x - hw, 1.f, hw, (float) getHeight() - 2.f);
+            juce::Path t; const float cy = getHeight() * 0.5f, a = left ? x + 2.5f : x - 2.5f, b = left ? x + hw - 2.5f : x - hw + 2.5f; t.addTriangle(b, cy - 5.f, b, cy + 5.f, a, cy); g.setColour(kBg); g.fillPath(t); };
+        if (x1 - x0 > 2 * hw + 4) { handle(x0, true); handle(x1, false); }
+    }
+    Mode hit(float x) const { const float x0 = boxX0(), x1 = std::max(boxX1(), x0 + 3.f); if (x1 - x0 > 24 && std::abs(x - x0) <= 9) return Left; if (x1 - x0 > 24 && std::abs(x - x1) <= 9) return Right; if (x >= x0 && x <= x1) return Pan; return None; }
+    double frameAt(float x) const { return juce::jlimit(0.0, (double) frames(), (double) x / (double) std::max(1, getWidth()) * (double) frames()); }
+    void mouseMove(const juce::MouseEvent& e) override { const auto m = hit((float) e.x); setMouseCursor(m == Left || m == Right ? juce::MouseCursor::LeftRightResizeCursor : (m == Pan ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::PointingHandCursor)); }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        if (frames() == 0) return; mode = hit((float) e.x);
+        if (mode == None) { mode = Pan; grab = d.vLen * 0.5; } else grab = frameAt((float) e.x) - d.vStart;
+        move((float) e.x);
+    }
+    void mouseDrag(const juce::MouseEvent& e) override { if (frames() > 0) move((float) e.x); }
+    void mouseDoubleClick(const juce::MouseEvent&) override { d.fitAll(); repaint(); }
+    void move(float x)
+    {
+        const double f = frameAt(x), end = d.vStart + d.vLen;
+        if (mode == Pan) d.vStart = f - grab;
+        else if (mode == Left) { const double ns = juce::jlimit(0.0, end - 32.0, f); d.vStart = ns; d.vLen = end - ns; }
+        else if (mode == Right) d.vLen = std::max(32.0, f - d.vStart);
+        d.clampView(); d.repaint(); repaint();
+    }
+    void zoomAt(double factor, float x) { const double a = frameAt(x); const float ax = (float) ((a - d.vStart) / d.vLen * d.getWidth()); d.zoom(factor, ax); repaint(); }
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
+    {
+        if (frames() == 0) return;
+        if (std::abs(w.deltaX) > std::abs(w.deltaY) || e.mods.isShiftDown()) { d.vStart -= (w.deltaX != 0 ? w.deltaX : w.deltaY) * d.vLen * 0.5; d.clampView(); d.repaint(); repaint(); }
+        else zoomAt(w.deltaY > 0 ? 0.8 : 1.25, (float) e.x);
+    }
+    void mouseMagnify(const juce::MouseEvent& e, float scale) override { if (frames() > 0 && scale > 0.f) zoomAt(1.0 / (double) scale, (float) e.x); }
+};
+
 // ---------------- a process panel: sliders for one operation ----------------
 struct OpPanel : juce::Component
 {
@@ -209,12 +271,12 @@ struct DragHandle : juce::Component, juce::SettableTooltipClient
 
 struct MeowEditor::Impl
 {
-    Impl(MeowEditor& o, MeowProcessor& pr) : owner(o), p(pr), gate(o), display(pr), inM("IN"), outM("OUT"), drag(pr, &o)
+    Impl(MeowEditor& o, MeowProcessor& pr) : owner(o), p(pr), gate(o), display(pr), overview(pr, display), inM("IN"), outM("OUT"), drag(pr, &o)
     {
         o.setLookAndFeel(&laf); o.addAndMakeVisible(content); auto& c = content;
         for (auto* b : { &mFile, &mEdit, &mProcess, &mView, &mRecord }) c.addAndMakeVisible(*b);
         for (auto* b : { &rec, &stop, &play, &loop, &monitor, &undo, &redo, &guide, &about }) c.addAndMakeVisible(*b);
-        c.addAndMakeVisible(display); c.addAndMakeVisible(inM); c.addAndMakeVisible(outM); c.addAndMakeVisible(drag); c.addAndMakeVisible(info); c.addAndMakeVisible(timeL);
+        c.addAndMakeVisible(display); c.addAndMakeVisible(overview); c.addAndMakeVisible(inM); c.addAndMakeVisible(outM); c.addAndMakeVisible(drag); c.addAndMakeVisible(info); c.addAndMakeVisible(timeL);
         for (auto* l : { &info, &timeL }) { l->setColour(juce::Label::textColourId, kDim); l->setFont(mono(13.f)); }
         timeL.setFont(mono(22.f, true)); timeL.setColour(juce::Label::textColourId, kText); timeL.setJustificationType(juce::Justification::centredLeft);
         auto knob = [&](juce::Slider& s, const char* id, const char* tip, const String& suffix) { s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 16); s.setTooltip(tip); s.setTextValueSuffix(suffix);
@@ -330,7 +392,7 @@ struct MeowEditor::Impl
     }
     void tick()
     {
-        inM.set(p.inPeak.load()); outM.set(p.outPeak.load());
+        overview.tick(); inM.set(p.inPeak.load()); outM.set(p.outPeak.load());
         if (seenVer != p.version()) { seenVer = p.version(); refreshInfo(); display.repaint(); }
         const bool r = p.isRecording(), arm = p.isArmedOnly();
         rec.flash = r && !arm; rec.col = kRed; rec.setButtonText(p.isCountingIn() ? "Count-in" : (arm ? "Armed" : (r ? "Recording" : "Record"))); rec.repaint();
@@ -345,6 +407,7 @@ struct MeowEditor::Impl
         for (size_t i = 0; i < n; ++i) { const double t = (double) i / a.sr; const double ph = std::fmod(t, 0.8); const double env = std::exp(-ph * 7.0); const double f = 55.0 + 180.0 * std::exp(-ph * 30.0);
             const float s = (float) (std::sin(2.0 * 3.14159265 * f * ph) * env * 0.8 + rng.bi() * std::exp(-ph * 40.0) * 0.3); a.ch[0][i] = s; a.ch[1][i] = s * 0.92f; }
         p.doc.load(a); p.doc.setSelection((size_t) (a.sr * 0.7), (size_t) (a.sr * 2.1)); p.changed(); display.fitAll();
+        if (what == 1) { display.vStart = (double) n * 0.15; display.vLen = (double) n * 0.55; display.clampView(); }
         if (what == 2) { display.spectral = true; viewS.setToggleState(true, juce::dontSendNotification); viewW.setToggleState(false, juce::dontSendNotification); }
         if (const char* out = std::getenv("MEOW_SNAPSHOT")) juce::Timer::callAfterDelay(2500, [this, path = String(out)] {
             auto img = owner.createComponentSnapshot(owner.getLocalBounds(), true, 1.5f); juce::File f(path); f.deleteFile(); juce::FileOutputStream os(f); if (os.openedOk()) juce::PNGImageFormat().writeImageToStream(img, os);
@@ -359,7 +422,7 @@ struct MeowEditor::Impl
         rec.setBounds(14, 134, 130, 40); stop.setBounds(150, 134, 80, 40); play.setBounds(236, 134, 90, 40); loop.setBounds(332, 134, 70, 40); monitor.setBounds(408, 134, 90, 40); undo.setBounds(504, 134, 70, 40); redo.setBounds(580, 134, 70, 40);
         timeL.setBounds(668, 134, 160, 40); take.setBounds(836, 138, 170, 32); thr.setBounds(922, 82, 0, 0);
         thr.setBounds(1014, 126, 56, 70); pre.setBounds(1074, 126, 56, 70);
-        display.setBounds(14, 202, 1010, 440); inM.setBounds(1036, 210, 52, 438); outM.setBounds(1088, 210, 52, 438);
+        display.setBounds(14, 202, 1010, 396); overview.setBounds(14, 604, 1010, 40); inM.setBounds(1036, 210, 52, 438); outM.setBounds(1088, 210, 52, 438);
         info.setBounds(14, 650, 880, 22); drag.setBounds(940, 652, 186, 30);
     }
     void paintContent(Graphics& g)
@@ -377,7 +440,7 @@ struct MeowEditor::Impl
     MeowEditor& owner; MeowProcessor& p; catui::CatLookAndFeel laf; juce::ComponentBoundsConstrainer constrainer; catui::RenderGate gate;
     Pill mFile { "File", kTeal }, mEdit { "Edit", kTeal }, mProcess { "Process", kTeal }, mView { "View", kTeal }, mRecord { "Record", kTeal };
     Pill rec { "Record", kRed }, stop { "Stop", kText }, play { "Play", kGold }, loop { "Loop", kGold }, monitor { "Monitor", kTeal }, undo { "Undo", kText }, redo { "Redo", kText }, guide { "Guide" }, about { "About & Support" }, viewW { "Waveform" }, viewS { "Spectral" };
-    Display display; Meter inM, outM; DragHandle drag; juce::Label info, timeL; juce::Slider thr, pre; juce::ComboBox take;
+    Display display; Overview overview; Meter inM, outM; DragHandle drag; juce::Label info, timeL; juce::Slider thr, pre; juce::ComboBox take;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> atts; std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> takeA;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> loopA, monA; std::unique_ptr<juce::TooltipWindow> tip; std::unique_ptr<juce::FileChooser> chooser;
     juce::Component* box = nullptr; int recMode = MeowProcessor::RecNow, seenVer = -1, statusAge = 0; String status;
