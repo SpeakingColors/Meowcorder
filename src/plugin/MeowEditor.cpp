@@ -355,7 +355,7 @@ struct MeowEditor::Impl
         rec.setBounds(14, 134, 130, 40); stop.setBounds(150, 134, 80, 40); play.setBounds(236, 134, 90, 40); loop.setBounds(332, 134, 70, 40); monitor.setBounds(408, 134, 90, 40); undo.setBounds(504, 134, 70, 40); redo.setBounds(580, 134, 70, 40);
         timeL.setBounds(668, 134, 160, 40); take.setBounds(836, 138, 170, 32); thr.setBounds(922, 82, 0, 0);
         thr.setBounds(1014, 126, 56, 70); pre.setBounds(1074, 126, 56, 70);
-        display.setBounds(14, 202, 1010, 440); inM.setBounds(1036, 196, 52, 452); outM.setBounds(1088, 196, 52, 452);
+        display.setBounds(14, 202, 1010, 440); inM.setBounds(1036, 210, 52, 438); outM.setBounds(1088, 210, 52, 438);
         info.setBounds(14, 650, 880, 22); drag.setBounds(940, 652, 186, 30);
     }
     void paintContent(Graphics& g)
