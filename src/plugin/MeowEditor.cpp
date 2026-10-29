@@ -79,9 +79,13 @@ struct Display : juce::Component, juce::SettableTooltipClient
     void mouseDoubleClick(const juce::MouseEvent&) override { if (frames() > 0) { p.doc.setSelection(0, frames()); if (onSelection) onSelection(); repaint(); } }
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
-        if (frames() == 0) return; const float d = w.deltaY != 0 ? w.deltaY : w.deltaX;
-        if (e.mods.isShiftDown()) { vStart -= d * vLen * 0.5; clampView(); repaint(); } else zoom(d > 0 ? 0.8 : 1.25, (float) e.x);
+        if (frames() == 0) return;
+        // trackpad: a sideways swipe pans, an up or down swipe zooms; mouse wheel zooms, Shift and wheel pans
+        if (e.mods.isShiftDown() || std::abs(w.deltaX) > std::abs(w.deltaY)) { const float d = w.deltaX != 0 && !e.mods.isShiftDown() ? w.deltaX : (w.deltaY != 0 ? w.deltaY : w.deltaX); vStart -= d * vLen * 0.5; clampView(); repaint(); }
+        else zoom(w.deltaY > 0 ? 0.8 : 1.25, (float) e.x);
     }
+    // pinch on a Mac trackpad
+    void mouseMagnify(const juce::MouseEvent& e, float scale) override { if (frames() > 0 && scale > 0.f) zoom(1.0 / (double) scale, (float) e.x); }
 
     void paint(Graphics& g) override
     {
