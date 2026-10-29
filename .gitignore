@@ -1,6 +1,0 @@
-build/
-*.o
-__pycache__/
-*.pyc
-.DS_Store
-docs/mockups/Meowcorder.fragment.html
