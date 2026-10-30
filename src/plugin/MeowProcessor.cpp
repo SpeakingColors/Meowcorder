@@ -7,6 +7,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout MeowProcessor::makeLayout()
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout l;
     l.add(std::make_unique<AudioParameterFloat>(ParameterID { "thresh", 1 }, "Record threshold", NormalisableRange<float>(-60.f, 0.f, 0.1f), -40.f, AudioParameterFloatAttributes().withLabel("dB")));
+    l.add(std::make_unique<AudioParameterFloat>(ParameterID { "bpm", 1 }, "Click tempo", NormalisableRange<float>(40.f, 240.f, 1.f), 120.f, AudioParameterFloatAttributes().withLabel("bpm")));
     l.add(std::make_unique<AudioParameterFloat>(ParameterID { "preroll", 1 }, "Pre-roll", NormalisableRange<float>(0.f, 2000.f, 1.f), 300.f, AudioParameterFloatAttributes().withLabel("ms")));
     l.add(std::make_unique<AudioParameterBool>(ParameterID { "monitor", 1 }, "Monitor input", true));
     l.add(std::make_unique<AudioParameterBool>(ParameterID { "loop", 1 }, "Loop playback", false));
@@ -19,7 +20,7 @@ MeowProcessor::MeowProcessor()
       apvts(*this, nullptr, "MEOWCORDER", makeLayout())
 {
     fifoBuf[0].assign(kFifo, 0.f); fifoBuf[1].assign(kFifo, 0.f); drainL.resize(4096); drainR.resize(4096);
-    pThresh = apvts.getRawParameterValue("thresh"); pPre = apvts.getRawParameterValue("preroll"); pMonitor = apvts.getRawParameterValue("monitor");
+    pThresh = apvts.getRawParameterValue("thresh"); pPre = apvts.getRawParameterValue("preroll"); pBpm = apvts.getRawParameterValue("bpm"); pMonitor = apvts.getRawParameterValue("monitor");
     pLoop = apvts.getRawParameterValue("loop"); pTake = apvts.getRawParameterValue("take");
     fm.registerBasicFormats();
     recorder.prepare(sr, 30.0);
@@ -45,6 +46,7 @@ void MeowProcessor::processBlock(juce::AudioBuffer<float>& buf, juce::MidiBuffer
     if (buf.getNumChannels() < 2) return;
     float* L = buf.getWritePointer(0); float* R = buf.getWritePointer(1);
     if (nIn < 2) std::memcpy(R, L, sizeof(float) * (size_t) n);   // mono input on both sides
+    hostBpm = (double) pBpm->load();   // the Tempo knob, used when the host gives no tempo
     if (auto* ph = getPlayHead()) if (auto pos = ph->getPosition()) if (auto b = pos->getBpm()) if (*b > 20.0) hostBpm = *b;
 
     // input to the recorder FIFO and the IN meter (before anything is added to the output)

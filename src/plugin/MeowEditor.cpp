@@ -2,13 +2,16 @@
 #include <catui/CatLookAndFeel.h>
 #include <catui/RenderGate.h>
 #include <catui/Logo.h>
+#include "MeowIcons.h"
 #include <cmath>
+#include <functional>
+#include <map>
 
 using juce::Colour; using juce::Graphics; using juce::String;
 
 namespace {
 const Colour kBg(0xff101114), kPanel(0xff17181c), kEdge(0xff2c2e35), kText(0xffe8e6e1), kDim(0xff8c909a), kGold(0xffffd100), kPink(0xffff4fa0), kTeal(0xff12d6b4), kRed(0xffff3b4a), kBlue(0xff6ec6ff);
-constexpr int kCheek = 30, kContentW = 1140, kBaseW = kContentW + 2 * kCheek, kBaseH = 720;
+constexpr int kCheek = 30, kContentW = 1140, kBaseW = kContentW + 2 * kCheek, kBaseH = 800;
 juce::Font mono(float h, bool bold = false) { return juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), h, bold ? juce::Font::bold : juce::Font::plain)); }
 juce::Font sans(float h, bool bold = false) { return juce::Font(juce::FontOptions(h, bold ? juce::Font::bold : juce::Font::plain)); }
 
@@ -31,6 +34,42 @@ String timeText(double sec, bool fine = true)
     const int m = (int) (sec / 60.0); const double s = sec - m * 60.0;
     return String(m) + ":" + String(s, fine ? 2 : 0).paddedLeft('0', fine ? 5 : 2);
 }
+
+// ---------------- icon button: the mockup's icons (tools/make_icons.py) drawn from their SVG paths ----------------
+class IconButton : public juce::Button
+{
+public:
+    explicit IconButton(const juce::String& iconName, Colour c = kText) : juce::Button(iconName), tint(c), icon(iconName.toStdString()) {}
+    Colour tint; std::function<void()> onDouble; std::function<void(bool)> onHover;
+    void paintButton(Graphics& g, bool over, bool down) override
+    {
+        auto r = getLocalBounds().toFloat().reduced(0.5f); const bool on = getToggleState(), en = isEnabled();
+        g.setColour(on ? tint.withAlpha(0.2f) : (over && en ? Colour(0xff2c2f38) : Colour(0xff23252c))); g.fillRoundedRectangle(r, 4.f);
+        g.setColour(on ? tint : (over && en ? Colour(0xff50535f) : Colour(0xff343741))); g.drawRoundedRectangle(r, 4.f, 1.f);
+        if (auto* d = get(!en ? tint.withAlpha(0.3f) : (on ? Colour(0xffffffff) : (down ? kGold : tint))))
+            d->drawWithin(g, getLocalBounds().toFloat().withSizeKeepingCentre(20.f, 20.f), juce::RectanglePlacement::centred, 1.f);
+    }
+    void mouseDoubleClick(const juce::MouseEvent&) override { if (onDouble) onDouble(); }
+    void mouseEnter(const juce::MouseEvent& e) override { juce::Button::mouseEnter(e); if (onHover) onHover(true); }
+    void mouseExit(const juce::MouseEvent& e) override { juce::Button::mouseExit(e); if (onHover) onHover(false); }
+private:
+    std::string icon; std::map<juce::uint32, std::unique_ptr<juce::Drawable>> cache;
+    juce::Drawable* get(Colour c)
+    {
+        auto it = cache.find(c.getARGB()); if (it != cache.end()) return it->second.get();
+        const String hex = "#" + c.withAlpha(1.f).toDisplayString(false); String body = String(mcicons::find(icon)).replace("currentColor", hex), out;
+        for (auto& part : juce::StringArray::fromTokens(body, "<", ""))
+        {
+            if (part.isEmpty()) continue; const String tag = part.upToFirstOccurrenceOf(" ", false, false);
+            String attrs = String(" stroke=\"") + hex + "\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-opacity=\"" + String(c.getFloatAlpha()) + "\"";
+            if (!part.contains("fill=")) attrs = " fill=\"none\"" + attrs; else attrs += " fill-opacity=\"" + String(c.getFloatAlpha()) + "\"";
+            out += "<" + tag + attrs + part.fromFirstOccurrenceOf(tag, false, false);
+        }
+        std::unique_ptr<juce::Drawable> d;
+        if (auto xml = juce::XmlDocument::parse("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\" width=\"20\" height=\"20\">" + out + "</svg>")) d = juce::Drawable::createFromSVG(*xml);
+        return (cache[c.getARGB()] = std::move(d)).get();
+    }
+};
 
 // ---------------- level meter with dB marks ----------------
 struct Meter : juce::Component
@@ -274,29 +313,34 @@ struct MeowEditor::Impl
     Impl(MeowEditor& o, MeowProcessor& pr) : owner(o), p(pr), gate(o), display(pr), overview(pr, display), inM("IN"), outM("OUT"), drag(pr, &o)
     {
         o.setLookAndFeel(&laf); o.addAndMakeVisible(content); auto& c = content;
-        for (auto* b : { &mFile, &mEdit, &mProcess, &mView, &mRecord }) c.addAndMakeVisible(*b);
-        for (auto* b : { &rec, &stop, &play, &loop, &monitor, &undo, &redo, &guide, &about }) c.addAndMakeVisible(*b);
-        c.addAndMakeVisible(display); c.addAndMakeVisible(overview); c.addAndMakeVisible(inM); c.addAndMakeVisible(outM); c.addAndMakeVisible(drag); c.addAndMakeVisible(info); c.addAndMakeVisible(timeL);
-        for (auto* l : { &info, &timeL }) { l->setColour(juce::Label::textColourId, kDim); l->setFont(mono(13.f)); }
+        for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp, &guide, &about, &startNow, &startIn, &startCount, &takeB, &viewW, &viewS }) c.addAndMakeVisible(*b);
+        for (auto* b : { &loop, &play, &stop, &rec, &monitor }) c.addAndMakeVisible(*b); c.addAndMakeVisible(recOpt);
+        c.addAndMakeVisible(display); c.addAndMakeVisible(overview); c.addAndMakeVisible(inM); c.addAndMakeVisible(outM); c.addAndMakeVisible(drag);
+        for (auto* l : { &readout, &timeL, &recHintL, &opHint }) c.addAndMakeVisible(*l);
+        readout.setFont(mono(13.f)); readout.setColour(juce::Label::textColourId, kDim); recHintL.setFont(mono(12.f)); recHintL.setColour(juce::Label::textColourId, kPink);
+        opHint.setFont(sans(12.f)); opHint.setColour(juce::Label::textColourId, kDim); opHint.setMinimumHorizontalScale(1.f); opHint.setJustificationType(juce::Justification::topLeft);
         timeL.setFont(mono(22.f, true)); timeL.setColour(juce::Label::textColourId, kText); timeL.setJustificationType(juce::Justification::centredLeft);
-        auto knob = [&](juce::Slider& s, const char* id, const char* tip, const String& suffix) { s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 16); s.setTooltip(tip); s.setTextValueSuffix(suffix);
+        auto knob = [&](juce::Slider& s, const char* id, const char* tip, const String& suffix) { s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 66, 14); s.setTooltip(tip); s.setTextValueSuffix(suffix);
             s.setColour(juce::Slider::textBoxTextColourId, kTeal); s.setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); c.addAndMakeVisible(s); atts.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(p.apvts, id, s)); };
-        knob(thr, "thresh", "Level that starts a recording in On input mode.", " dB"); knob(pre, "preroll", "Sound from just before you pressed record that is kept in the take.", " ms");
-        take.addItemList(dynamic_cast<juce::AudioParameterChoice*>(p.apvts.getParameter("take"))->choices, 1); take.setTooltip("Where a new recording goes: replace the sound, add it at the end, punch over the selection or insert at the selection."); c.addAndMakeVisible(take);
-        takeA = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(p.apvts, "take", take);
+        knob(thr, "thresh", "Level that starts a recording when the start is set to On input.", " dB"); knob(bpm, "bpm", "Tempo of the count-in click. The host tempo is used when the host gives one.", " bpm"); knob(pre, "preroll", "Sound from just before the start that is kept in the take.", " ms");
         loopA = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.apvts, "loop", loop); monA = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.apvts, "monitor", monitor);
         loop.setClickingTogglesState(true); monitor.setClickingTogglesState(true);
-        viewW.setClickingTogglesState(false); viewS.setClickingTogglesState(false); c.addAndMakeVisible(viewW); c.addAndMakeVisible(viewS); viewW.setToggleState(true, juce::dontSendNotification);
-        viewW.onClick = [this] { display.spectral = false; viewW.setToggleState(true, juce::dontSendNotification); viewS.setToggleState(false, juce::dontSendNotification); display.repaint(); };
-        viewS.onClick = [this] { display.spectral = true; viewS.setToggleState(true, juce::dontSendNotification); viewW.setToggleState(false, juce::dontSendNotification); display.repaint(); };
-        rec.setTooltip("Record (R). Uses the start mode from the Record menu. Press again to stop and keep the take."); stop.setTooltip("Stop (Space or Esc)."); play.setTooltip("Play the selection, or from the cursor (Space).");
-        loop.setTooltip("Repeat playback."); monitor.setTooltip("Hear the input while recording."); undo.setTooltip("Undo (Ctrl+Z)."); redo.setTooltip("Redo (Ctrl+Y)."); guide.setTooltip("Open the manual."); about.setTooltip("Free and open source. Opens the Ko-fi page.");
-        mFile.onClick = [this] { menu(mFile, fileMenu()); }; mEdit.onClick = [this] { menu(mEdit, editMenu()); }; mProcess.onClick = [this] { menu(mProcess, processMenu()); };
-        mView.onClick = [this] { menu(mView, viewMenu()); }; mRecord.onClick = [this] { menu(mRecord, recordMenu()); };
-        rec.onClick = [this] { toggleRecord(); }; stop.onClick = [this] { doStop(); }; play.onClick = [this] { doPlay(); };
-        undo.onClick = [this] { doUndo(); }; redo.onClick = [this] { doRedo(); };
-        guide.onClick = [] { juce::URL("https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf").launchInDefaultBrowser(); };
-        about.onClick = [] { juce::URL("https://ko-fi.com/studio87").launchInDefaultBrowser(); };
+        viewW.setClickingTogglesState(false); viewS.setClickingTogglesState(false); viewW.setToggleState(true, juce::dontSendNotification);
+        viewW.onClick = [this] { setSpectral(false); }; viewS.onClick = [this] { setSpectral(true); };
+        loop.setTooltip("Repeat playback."); play.setTooltip("Play the selection, or from the cursor (Space)."); stop.setTooltip("Stop (Space or Esc)."); rec.setTooltip("Record (R). Press again to stop and keep the take."); recOpt.setTooltip("Record options: start mode and what a take does.");
+        monitor.setTooltip("Hear the input while recording.");
+        startNow.setTooltip("Recording starts the moment you press Record."); startIn.setTooltip("Press Record to arm. Recording starts when the incoming sound passes the threshold; the pre-roll is kept."); startCount.setTooltip("One bar of click (4/4) at the tempo, then recording starts.");
+        takeB.setTooltip("What a new recording does: replace the sound, append at the end, punch over the selection or insert at the cursor. Click to change.");
+        startNow.onClick = [this] { recMode = MeowProcessor::RecNow; }; startIn.onClick = [this] { recMode = MeowProcessor::RecOnInput; }; startCount.onClick = [this] { recMode = MeowProcessor::RecCountIn; };
+        takeB.onClick = [this] { juce::PopupMenu m; auto* tp = dynamic_cast<juce::AudioParameterChoice*>(p.apvts.getParameter("take")); const int cur = tp != nullptr ? tp->getIndex() : 0;
+            if (tp != nullptr) for (int i = 0; i < tp->choices.size(); ++i) m.addItem(tp->choices[i], true, i == cur, [tp, i] { *tp = i; }); m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&takeB)); };
+        guide.setTooltip("Open the manual."); about.setTooltip("Free and open source. Opens the Ko-fi page.");
+        mFile.onClick = [this] { menu(mFile, fileMenu()); }; mEdit.onClick = [this] { menu(mEdit, editMenu()); }; mSelect.onClick = [this] { menu(mSelect, selectMenu()); }; mView.onClick = [this] { menu(mView, viewMenu()); };
+        mPlay.onClick = [this] { menu(mPlay, playMenu()); }; mRecord.onClick = [this] { menu(mRecord, recordMenu()); }; mProcess.onClick = [this] { menu(mProcess, processMenu()); }; mHelp.onClick = [this] { menu(mHelp, helpMenu()); };
+        rec.onClick = [this] { toggleRecord(); }; stop.onClick = [this] { doStop(); }; play.onClick = [this] { doPlay(); }; recOpt.onClick = [this] { menu(recOpt, recordMenu()); };
+        guide.onClick = [] { openManual(); }; about.onClick = [] { openAbout(); };
+        rec.tint = kRed; play.tint = kGold; loop.tint = kGold; monitor.tint = kTeal; stop.tint = kText;
+        buildTools(); buildOps();
         display.onSelection = [this] { refreshInfo(); };
         tip = std::make_unique<juce::TooltipWindow>(&o, 500);
         constrainer.setFixedAspectRatio((double) kBaseW / kBaseH); constrainer.setSizeLimits(kBaseW / 2, kBaseH / 2, kBaseW * 2, kBaseH * 2);
@@ -306,11 +350,71 @@ struct MeowEditor::Impl
     }
     ~Impl() { owner.setLookAndFeel(nullptr); }
 
+    // ---- tool bar and process grid ----
+    struct ToolSpec { IconButton* b; bool gapBefore; std::function<bool()> enabled; };
+    void buildTools()
+    {
+        auto& c = content; auto& d = p.doc; const std::function<bool()> frames = [this] { return p.doc.audio.frames() > 0; }; const std::function<bool()> sel = [this] { return p.doc.hasSelection(); };
+        auto add = [&](const char* ic, const String& tipText, bool gap, std::function<void()> f, std::function<bool()> en) { auto* b = tools.add(new IconButton(ic)); b->setTooltip(tipText); b->onClick = std::move(f); c.addAndMakeVisible(b); specs.push_back({ b, gap, std::move(en) }); };
+        auto edit = [this](std::function<void()> f) { return [this, f] { p.stopPlay(); f(); p.changed(); }; };
+        add("new", "New, an empty sound.", false, [this] { p.newSound(); display.fitAll(); }, {});
+        add("open", "Open a sound from a file.", false, [this] { openFile(); }, {});
+        add("save", "Export the sound as a 24 bit WAV file.", false, [this] { saveFile(false); }, frames);
+        add("undo", "Undo (Ctrl+Z).", true, [this] { doUndo(); }, [this] { return p.doc.canUndo(); });
+        add("redo", "Redo (Ctrl+Y).", false, [this] { doRedo(); }, [this] { return p.doc.canRedo(); });
+        add("cut", "Cut the selection (Ctrl+X).", true, edit([&d] { d.cut(); }), sel);
+        add("copy", "Copy the selection (Ctrl+C).", false, [&d] { d.copy(); }, sel);
+        add("paste", "Paste at the cursor, or over the selection (Ctrl+V).", false, edit([&d] { d.paste(); }), [this] { return p.doc.clipboard().frames() > 0; });
+        add("del", "Delete the selection (Del).", false, edit([&d] { d.deleteSelection(); }), sel);
+        add("crop", "Keep only the selection (Ctrl+T).", false, edit([&d] { d.cropToSelection(); }), sel);
+        add("all", "Select everything (Ctrl+A).", true, [this] { selectAll(); }, frames);
+        add("snap", "Move the selection edges, or the cursor, to the nearest zero crossing so cuts do not click.", false, [this] { snapSel(); }, frames);
+        add("zin", "Zoom in.", true, [this] { display.zoom(0.5, display.getWidth() * 0.5f); }, frames);
+        add("zout", "Zoom out.", false, [this] { display.zoom(2.0, display.getWidth() * 0.5f); }, frames);
+        add("fit", "Show the whole sound.", false, [this] { display.fitAll(); }, frames);
+        add("tosel", "Zoom to the selection.", false, [this] { display.zoomToSelection(); }, sel);
+        add("repeat", "Repeat the last operation (Ctrl+Shift+Z).", true, edit([&d] { d.repeatLast(); }), [this] { return p.doc.last.op >= 0; });
+    }
+    static Colour groupColour(const String& g)
+    {
+        if (g == "Edit") return Colour(0xff6cc9f5); if (g == "Stereo") return Colour(0xffa43dff); if (g == "Time") return Colour(0xffff9000); if (g == "Colour") return Colour(0xffffd100); if (g == "Tone") return Colour(0xffff1383);
+        return Colour(0xff02ebba);
+    }
+    static char keyFor(const String& id)
+    {
+        static const std::pair<const char*, char> k[] = { { "gain", 'G' }, { "normalize", 'N' }, { "fadeIn", 'I' }, { "fadeOut", 'O' }, { "reverse", 'R' }, { "invert", 'P' }, { "dcRemove", 'D' }, { "silence", 'S' }, { "mono", 'M' }, { "pan", 'B' }, { "rate", 'Y' }, { "bitcrush", 'K' },
+            { "drive", 'V' }, { "eq", 'E' }, { "filter", 'F' }, { "delay", 'L' }, { "chorus", 'H' }, { "phaser", 'A' }, { "reverb", 'W' }, { "compressor", 'C' }, { "limiter", 'T' }, { "gate", 'U' }, { "trimSilence", 'X' }, { "loopXfade", 'J' } };
+        for (auto& e : k) if (id == e.first) return e.second;
+        return 0;
+    }
+    void buildOps()
+    {
+        std::vector<String> groups; for (int i = 0; i < mc::opCount; ++i) { const String g(mc::kOps[i].group); if (std::find(groups.begin(), groups.end(), g) == groups.end()) groups.push_back(g); }
+        for (auto& g : groups) for (int i = 0; i < mc::opCount; ++i) if (String(mc::kOps[i].group) == g) opOrder.push_back(i);
+        for (int i : opOrder)
+        {
+            const String id(mc::kOps[i].id); auto* b = opBtns.add(new IconButton(id == "mono" ? "monoOp" : id, groupColour(mc::kOps[i].group)));
+            const char k = keyFor(id); const String full = String(mc::kOps[i].name) + ": " + mc::kOps[i].tip + (k != 0 ? String("  (Shift+") + String::charToString((juce::juce_wchar) k) + ")" : String());
+            b->setTooltip(full); b->onHover = [this, full](bool on) { opHint.setText(on ? full : String(), juce::dontSendNotification); };
+            b->onClick = [this, i, b] { openOp(i, b); }; b->onDouble = [this, i] { closeBox(); applyOpNow(i); }; content.addAndMakeVisible(b);
+        }
+    }
+
     // ---- actions ----
+    void setSpectral(bool s) { display.spectral = s; viewS.setToggleState(s, juce::dontSendNotification); viewW.setToggleState(!s, juce::dontSendNotification); display.repaint(); }
+    static void openManual() { juce::URL("https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf").launchInDefaultBrowser(); }
+    static void openAbout() { juce::URL("https://ko-fi.com/studio87").launchInDefaultBrowser(); }
     void doStop() { if (p.isRecording()) p.stopRecord(); p.stopPlay(); }
     void doPlay() { if (p.isPlaying()) p.stopPlay(); else { if (p.isRecording()) p.stopRecord(); p.play(); } }
     void toggleRecord() { if (p.isRecording()) p.stopRecord(); else { p.startRecord(recMode); } }
     void doUndo() { p.stopPlay(); p.doc.undo(); p.changed(); } void doRedo() { p.stopPlay(); p.doc.redo(); p.changed(); }
+    void selectAll() { p.doc.setSelection(0, p.doc.audio.frames()); display.repaint(); refreshInfo(); }
+    void snapSel()
+    {
+        auto& d = p.doc; const size_t r = (size_t) std::max(8.0, d.audio.sr * 0.01);
+        if (d.hasSelection()) { const size_t a = d.snapToZero(d.selA, r), b = d.snapToZero(d.selB, r); if (b > a) d.setSelection(a, b); } else d.setCursor(d.snapToZero(d.cursor, r));
+        display.repaint(); refreshInfo();
+    }
     void openFile()
     {
         chooser = std::make_unique<juce::FileChooser>("Open a sound", juce::File(), "*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
@@ -321,11 +425,17 @@ struct MeowEditor::Impl
         chooser = std::make_unique<juce::FileChooser>(flac ? "Export FLAC" : "Export WAV", juce::File::getSpecialLocation(juce::File::userMusicDirectory).getChildFile(flac ? "sound.flac" : "sound.wav"), flac ? "*.flac" : "*.wav");
         chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting, [this, flac](const juce::FileChooser& fc) { if (fc.getResult() != juce::File() && !p.saveFile(fc.getResult(), flac)) status = "Could not save"; });
     }
-    void openOp(int op)
+    void closeBox() { juce::Component::SafePointer<juce::Component> sp(box); box = nullptr; if (sp != nullptr) if (auto* cb = dynamic_cast<juce::CallOutBox*>(sp.getComponent())) cb->dismiss(); }
+    void openOp(int op, juce::Component* at)
     {
-        if (p.doc.audio.frames() == 0) return;
-        auto panel = std::make_unique<OpPanel>(p, op, [this] { juce::Component::SafePointer<juce::Component> sp(box); if (sp != nullptr) { box = nullptr; if (auto* cb = dynamic_cast<juce::CallOutBox*>(sp.getComponent())) cb->dismiss(); } });
-        auto& cb = juce::CallOutBox::launchAsynchronously(std::move(panel), owner.getScreenBounds().withSizeKeepingCentre(10, 10), nullptr); box = &cb;
+        if (p.doc.audio.frames() == 0) return; closeBox();
+        auto panel = std::make_unique<OpPanel>(p, op, [this] { closeBox(); });
+        auto& cb = juce::CallOutBox::launchAsynchronously(std::move(panel), at->getScreenBounds(), nullptr); box = &cb;
+    }
+    void applyOpNow(int op)
+    {
+        if (p.doc.audio.frames() == 0) return; float v[mc::kMaxOpParams]; mc::defaultParams(op, v); if (p.doc.last.op == op) for (int i = 0; i < mc::kMaxOpParams; ++i) v[i] = p.doc.last.p[i];
+        p.stopPlay(); if (p.doc.apply(op, v)) p.changed();
     }
     void menu(juce::Component& at, juce::PopupMenu m) { m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&at)); }
     juce::PopupMenu fileMenu()
@@ -340,24 +450,35 @@ struct MeowEditor::Impl
         item("Undo", "Ctrl+Z", d.canUndo(), [this] { doUndo(); }); item("Redo", "Ctrl+Y", d.canRedo(), [this] { doRedo(); });
         item("Repeat last operation", "Ctrl+Shift+Z", d.last.op >= 0, chg([&d] { d.repeatLast(); })); m.addSeparator();
         item("Cut", "Ctrl+X", d.hasSelection(), chg([&d] { d.cut(); })); item("Copy", "Ctrl+C", d.hasSelection(), [&d] { d.copy(); }); item("Paste", "Ctrl+V", d.clipboard().frames() > 0, chg([&d] { d.paste(); }));
-        item("Delete", "Del", d.hasSelection(), chg([&d] { d.deleteSelection(); })); item("Crop to selection", "Ctrl+T", d.hasSelection(), chg([&d] { d.cropToSelection(); })); m.addSeparator();
-        item("Select all", "Ctrl+A", d.audio.frames() > 0, [this] { p.doc.setSelection(0, p.doc.audio.frames()); display.repaint(); refreshInfo(); }); return m;
+        item("Delete", "Del", d.hasSelection(), chg([&d] { d.deleteSelection(); })); item("Crop to selection", "Ctrl+T", d.hasSelection(), chg([&d] { d.cropToSelection(); })); return m;
+    }
+    juce::PopupMenu selectMenu()
+    {
+        juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0;
+        m.addItem("Select all", has, false, [this] { selectAll(); }); m.addItem("Select none", has, false, [this] { p.doc.setCursor(p.doc.hasSelection() ? p.doc.selA : p.doc.cursor); display.repaint(); refreshInfo(); });
+        m.addItem("Snap to zero crossings", has, false, [this] { snapSel(); }); return m;
     }
     juce::PopupMenu processMenu()
     {
         juce::PopupMenu m; String last;
-        for (int i = 0; i < mc::opCount; ++i)
+        for (int i : opOrder)
         {
             const String g(mc::kOps[i].group); if (g != last) { if (last.isNotEmpty()) m.addSeparator(); m.addSectionHeader(g); last = g; }
-            m.addItem(mc::kOps[i].name, p.doc.audio.frames() > 0, false, [this, i] { openOp(i); });
+            juce::PopupMenu::Item it(mc::kOps[i].name); it.setEnabled(p.doc.audio.frames() > 0); const char k = keyFor(mc::kOps[i].id); if (k != 0) it.shortcutKeyDescription = String("Shift+") + String::charToString((juce::juce_wchar) k);
+            it.setAction([this, i] { openOp(i, &mProcess); }); m.addItem(std::move(it));
         }
         return m;
     }
     juce::PopupMenu viewMenu()
     {
-        juce::PopupMenu m; m.addItem("Waveform", true, !display.spectral, [this] { viewW.onClick(); }); m.addItem("Spectral", true, display.spectral, [this] { viewS.onClick(); }); m.addSeparator();
+        juce::PopupMenu m; m.addItem("Waveform", true, !display.spectral, [this] { setSpectral(false); }); m.addItem("Spectral", true, display.spectral, [this] { setSpectral(true); }); m.addSeparator();
         m.addItem("Zoom in", [this] { display.zoom(0.5, display.getWidth() * 0.5f); }); m.addItem("Zoom out", [this] { display.zoom(2.0, display.getWidth() * 0.5f); });
         m.addItem("Zoom to selection", p.doc.hasSelection(), false, [this] { display.zoomToSelection(); }); m.addItem("Show all", [this] { display.fitAll(); }); return m;
+    }
+    juce::PopupMenu playMenu()
+    {
+        juce::PopupMenu m; juce::PopupMenu::Item a(p.isPlaying() ? "Pause" : "Play"); a.shortcutKeyDescription = "Space"; a.setAction([this] { doPlay(); }); m.addItem(std::move(a));
+        m.addItem("Play from the start", p.doc.audio.frames() > 0, false, [this] { p.stopPlay(); p.doc.setCursor(0); p.play(); }); m.addItem("Stop", [this] { doStop(); }); return m;
     }
     juce::PopupMenu recordMenu()
     {
@@ -367,39 +488,53 @@ struct MeowEditor::Impl
         m.addItem("After a 1 bar count-in (4/4)", true, recMode == MeowProcessor::RecCountIn, [this] { recMode = MeowProcessor::RecCountIn; }); m.addSeparator();
         m.addItem("Record now", [this] { if (!p.isRecording()) p.startRecord(recMode); }); return m;
     }
+    juce::PopupMenu helpMenu()
+    {
+        juce::PopupMenu m; m.addItem("Manual", [] { openManual(); }); m.addItem("Keyboard shortcuts", [] {
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::NoIcon, "Keyboard shortcuts",
+                "Space: play or pause\nEsc: stop\nR: record\nCtrl+Z / Ctrl+Y: undo / redo\nCtrl+Shift+Z: repeat the last operation\nCtrl+X / C / V: cut, copy, paste\nDel: delete the selection\nCtrl+T: crop to the selection\nCtrl+A: select all\nShift+letter: apply a process at once (see the Process menu)\nMouse wheel: zoom; Shift+wheel: scroll\nDouble click a process icon: apply it with its last settings"); });
+        m.addSeparator(); m.addItem("About and support (Ko-fi)", [] { openAbout(); }); return m;
+    }
     bool keys(const juce::KeyPress& k)
     {
         const auto m = k.getModifiers(); const int c = k.getKeyCode(); const bool ctrl = m.isCommandDown() || m.isCtrlDown();
+        if (!ctrl && m.isShiftDown() && c < 128 && std::isalpha(c)) { const int up = std::toupper(c); for (int i = 0; i < mc::opCount; ++i) if (keyFor(mc::kOps[i].id) == up) { applyOpNow(i); return true; } }
         if (c == juce::KeyPress::spaceKey) { doPlay(); return true; } if (c == juce::KeyPress::escapeKey) { doStop(); return true; }
-        if (!ctrl && (c == 'R' || c == 'r')) { toggleRecord(); return true; }
+        if (!ctrl && !m.isShiftDown() && (c == 'R' || c == 'r')) { toggleRecord(); return true; }
         if (ctrl && (c == 'Z' || c == 'z')) { if (m.isShiftDown()) { p.doc.repeatLast(); p.changed(); } else doUndo(); return true; }
         if (ctrl && (c == 'Y' || c == 'y')) { doRedo(); return true; }
         if (ctrl && (c == 'X' || c == 'x')) { p.stopPlay(); p.doc.cut(); p.changed(); return true; }
         if (ctrl && (c == 'C' || c == 'c')) { p.doc.copy(); return true; }
         if (ctrl && (c == 'V' || c == 'v')) { p.stopPlay(); p.doc.paste(); p.changed(); return true; }
         if (ctrl && (c == 'T' || c == 't')) { p.stopPlay(); p.doc.cropToSelection(); p.changed(); return true; }
-        if (ctrl && (c == 'A' || c == 'a')) { p.doc.setSelection(0, p.doc.audio.frames()); display.repaint(); refreshInfo(); return true; }
+        if (ctrl && (c == 'A' || c == 'a')) { selectAll(); return true; }
         if (c == juce::KeyPress::deleteKey || c == juce::KeyPress::backspaceKey) { p.stopPlay(); p.doc.deleteSelection(); p.changed(); return true; }
         return false;
     }
 
     void refreshInfo()
     {
-        const auto& a = p.doc.audio; if (a.frames() == 0) { info.setText("No sound", juce::dontSendNotification); return; }
-        String s = String((int) a.sr) + " Hz   stereo   " + timeText((double) a.frames() / a.sr) + " s   peak " + String(mc::linToDb(a.peak(0, a.frames())), 1) + " dB";
-        if (p.doc.hasSelection()) s += "   selection " + timeText((double) p.doc.selA / a.sr) + " to " + timeText((double) p.doc.selB / a.sr);
-        info.setText(s, juce::dontSendNotification);
+        const auto& a = p.doc.audio; chips[0] = "Stereo"; chips[1] = String(a.sr / 1000.0, 1) + " kHz"; chips[2] = "24 bit export";
+        if (a.frames() == 0) { readout.setText("Length 0:00.000   Selection none   Cursor 0:00.000", juce::dontSendNotification); return; }
+        String s = "Length " + timeText((double) a.frames() / a.sr) + "   Selection ";
+        s += p.doc.hasSelection() ? timeText((double) p.doc.selA / a.sr) + " to " + timeText((double) p.doc.selB / a.sr) : String("none, operations use everything");
+        s += "   Cursor " + timeText((double) p.doc.cursor / a.sr) + "   Peak " + String(mc::linToDb(a.peak(0, a.frames())), 1) + " dBFS";
+        readout.setText(s, juce::dontSendNotification);
     }
     void tick()
     {
         overview.tick(); inM.set(p.inPeak.load()); outM.set(p.outPeak.load());
         if (seenVer != p.version()) { seenVer = p.version(); refreshInfo(); display.repaint(); }
-        const bool r = p.isRecording(), arm = p.isArmedOnly();
-        rec.flash = r && !arm; rec.col = kRed; rec.setButtonText(p.isCountingIn() ? "Count-in" : (arm ? "Armed" : (r ? "Recording" : "Record"))); rec.repaint();
-        play.setButtonText(p.isPlaying() ? "Pause" : "Play"); play.setToggleState(p.isPlaying(), juce::dontSendNotification);
+        const bool r = p.isRecording(), arm = p.isArmedOnly(), has = p.doc.audio.frames() > 0;
+        rec.setToggleState(r, juce::dontSendNotification); play.setToggleState(p.isPlaying(), juce::dontSendNotification);
+        startNow.setToggleState(recMode == MeowProcessor::RecNow, juce::dontSendNotification); startIn.setToggleState(recMode == MeowProcessor::RecOnInput, juce::dontSendNotification); startCount.setToggleState(recMode == MeowProcessor::RecCountIn, juce::dontSendNotification);
+        if (auto* tp = dynamic_cast<juce::AudioParameterChoice*>(p.apvts.getParameter("take"))) takeB.setButtonText(tp->getCurrentChoiceName());
+        recHintL.setText(p.isCountingIn() ? "Count-in..." : (arm ? "Armed, waiting for sound" : (r ? "Recording" : String())), juce::dontSendNotification);
         timeL.setText(r ? timeText(p.recordedSeconds()) : (p.isPlaying() ? timeText(p.playPosFrames() / std::max(1.0, p.doc.audio.sr)) : timeText((double) p.doc.cursor / std::max(1.0, p.doc.audio.sr))), juce::dontSendNotification);
+        for (auto& sp : specs) { const bool en = sp.enabled ? sp.enabled() : true; if (sp.b->isEnabled() != en) sp.b->setEnabled(en); }
+        for (auto* b : opBtns) if (b->isEnabled() != has) b->setEnabled(has);
         if (p.isPlaying() || r) display.repaint();
-        if (status.isNotEmpty() && ++statusAge > 60) { status = {}; statusAge = 0; } content.repaint(juce::Rectangle<int>(14, 690, 900, 20));
+        if (status.isNotEmpty() && ++statusAge > 60) { status = {}; statusAge = 0; } content.repaint(juce::Rectangle<int>(14, 764, 800, 20));
     }
     void demo(int what)
     {
@@ -408,7 +543,8 @@ struct MeowEditor::Impl
             const float s = (float) (std::sin(2.0 * 3.14159265 * f * ph) * env * 0.8 + rng.bi() * std::exp(-ph * 40.0) * 0.3); a.ch[0][i] = s; a.ch[1][i] = s * 0.92f; }
         p.doc.load(a); p.doc.setSelection((size_t) (a.sr * 0.7), (size_t) (a.sr * 2.1)); p.changed(); display.fitAll();
         if (what == 1) { display.vStart = (double) n * 0.15; display.vLen = (double) n * 0.55; display.clampView(); }
-        if (what == 2) { display.spectral = true; viewS.setToggleState(true, juce::dontSendNotification); viewW.setToggleState(false, juce::dontSendNotification); }
+        if (what == 2) setSpectral(true);
+        if (what == 3 && !opBtns.isEmpty()) juce::Timer::callAfterDelay(800, [this] { openOp(opOrder[0], opBtns[0]); });
         if (const char* out = std::getenv("MEOW_SNAPSHOT")) juce::Timer::callAfterDelay(2500, [this, path = String(out)] {
             auto img = owner.createComponentSnapshot(owner.getLocalBounds(), true, 1.5f); juce::File f(path); f.deleteFile(); juce::FileOutputStream os(f); if (os.openedOk()) juce::PNGImageFormat().writeImageToStream(img, os);
             juce::MessageManager::getInstance()->stopDispatchLoop(); });
@@ -417,13 +553,19 @@ struct MeowEditor::Impl
     float scale() const { return (float) owner.getWidth() / (float) kBaseW; }
     void layout()
     {
-        int x = 14; for (auto* b : { &mFile, &mEdit, &mProcess, &mView, &mRecord }) { b->setBounds(x, 92, 96, 30); x += 102; }
-        guide.setBounds(900, 20, 90, 34); about.setBounds(1000, 20, 130, 34); viewW.setBounds(560, 92, 110, 30); viewS.setBounds(676, 92, 110, 30);
-        rec.setBounds(14, 134, 130, 40); stop.setBounds(150, 134, 80, 40); play.setBounds(236, 134, 90, 40); loop.setBounds(332, 134, 70, 40); monitor.setBounds(408, 134, 90, 40); undo.setBounds(504, 134, 70, 40); redo.setBounds(580, 134, 70, 40);
-        timeL.setBounds(668, 134, 160, 40); take.setBounds(836, 138, 170, 32); thr.setBounds(922, 82, 0, 0);
-        thr.setBounds(1014, 126, 56, 70); pre.setBounds(1074, 126, 56, 70);
-        display.setBounds(14, 202, 1010, 396); overview.setBounds(14, 604, 1010, 40); inM.setBounds(1036, 210, 52, 438); outM.setBounds(1088, 210, 52, 438);
-        info.setBounds(14, 650, 880, 22); drag.setBounds(940, 652, 186, 30);
+        int x = 14; for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp }) { b->setBounds(x, 92, 72, 28); x += 76; }
+        guide.setBounds(900, 20, 90, 34); about.setBounds(1000, 20, 130, 34);
+        loop.setBounds(14, 126, 36, 34); play.setBounds(54, 126, 36, 34); stop.setBounds(94, 126, 36, 34); rec.setBounds(134, 126, 36, 34); recOpt.setBounds(172, 126, 18, 34);
+        startNow.setBounds(204, 129, 66, 28); startIn.setBounds(274, 129, 92, 28); startCount.setBounds(370, 129, 86, 28); takeB.setBounds(464, 129, 110, 28);
+        thr.setBounds(14, 180, 66, 58); bpm.setBounds(88, 180, 66, 58); pre.setBounds(162, 180, 66, 58);
+        timeL.setBounds(246, 176, 180, 30); recHintL.setBounds(246, 208, 380, 24);
+        for (int k = 0; k < opBtns.size(); ++k) opBtns[k]->setBounds(640 + (k / 2) * 31, 92 + (k % 2) * 31, 28, 28);
+        opHint.setBounds(640, 158, 384, 60);
+        x = 14; for (auto& sp : specs) { if (sp.gapBefore) x += 10; sp.b->setBounds(x, 244, 30, 30); x += 33; }
+        monitor.setBounds(x + 10, 244, 30, 30);
+        readout.setBounds(14, 282, 1010, 20); viewW.setBounds(62, 332, 96, 26); viewS.setBounds(162, 332, 96, 26);
+        display.setBounds(14, 364, 1010, 340); overview.setBounds(14, 708, 1010, 36);
+        inM.setBounds(1036, 92, 52, 652); outM.setBounds(1088, 92, 52, 652); drag.setBounds(940, 756, 186, 30);
     }
     void paintContent(Graphics& g)
     {
@@ -431,17 +573,21 @@ struct MeowEditor::Impl
         g.setColour(kText); g.setFont(sans(34.f, true)); g.drawText("MEOWCORDER", 96, 8, 400, 46, juce::Justification::left);
         g.setColour(kGold); g.setFont(sans(14.f, true)); g.drawText("STUDIO 87", 98, 52, 200, 20, juce::Justification::left);
         g.setColour(kEdge); g.drawHorizontalLine(84, 14.f, 1126.f);
-        g.setColour(kDim); g.setFont(sans(11.f, true)); g.drawText("VIEW", 520, 92, 36, 30, juce::Justification::right);
-        g.drawText("THRESHOLD", 1004, 118, 70, 12, juce::Justification::centred); g.drawText("PRE-ROLL", 1066, 118, 70, 12, juce::Justification::centred);
-        g.setColour(kDim); g.setFont(mono(11.f)); g.drawText(status.isNotEmpty() ? status : String("STUDIO 87 | MEOWCORDER | start mode: ") + (recMode == 0 ? "right away" : (recMode == 1 ? "when the input is heard" : "1 bar count-in")) + " | hover a control for help", 14, 690, 900, 16, juce::Justification::left);
+        g.setColour(kDim); g.setFont(sans(10.5f, true));
+        g.drawText("THRESHOLD", 6, 166, 82, 12, juce::Justification::centred); g.drawText("TEMPO", 80, 166, 82, 12, juce::Justification::centred); g.drawText("PRE-ROLL", 154, 166, 82, 12, juce::Justification::centred);
+        g.drawText("VIEW", 14, 332, 44, 26, juce::Justification::left);
+        int cx = 14; for (int i = 0; i < 3; ++i) { const int w = i == 1 ? 96 : (i == 2 ? 128 : 78); auto r = juce::Rectangle<float>((float) cx, 308.f, (float) w, 20.f); g.setColour(kPanel); g.fillRoundedRectangle(r, 3.f); g.setColour(kEdge); g.drawRoundedRectangle(r.reduced(0.5f), 3.f, 1.f); g.setColour(kText); g.setFont(mono(12.f)); g.drawText(chips[i], r.toNearestInt(), juce::Justification::centred); cx += w + 6; }
+        g.setColour(kDim); g.setFont(mono(11.f)); g.drawText(status.isNotEmpty() ? status : String("STUDIO 87 | MEOWCORDER | hover a control for help | collects nothing, no network"), 14, 764, 800, 16, juce::Justification::left);
     }
 
     struct Content : juce::Component { Impl& i; explicit Content(Impl& x) : i(x) {} void paint(Graphics& g) override { i.paintContent(g); } } content { *this };
     MeowEditor& owner; MeowProcessor& p; catui::CatLookAndFeel laf; juce::ComponentBoundsConstrainer constrainer; catui::RenderGate gate;
-    Pill mFile { "File", kTeal }, mEdit { "Edit", kTeal }, mProcess { "Process", kTeal }, mView { "View", kTeal }, mRecord { "Record", kTeal };
-    Pill rec { "Record", kRed }, stop { "Stop", kText }, play { "Play", kGold }, loop { "Loop", kGold }, monitor { "Monitor", kTeal }, undo { "Undo", kText }, redo { "Redo", kText }, guide { "Guide" }, about { "About & Support" }, viewW { "Waveform" }, viewS { "Spectral" };
-    Display display; Overview overview; Meter inM, outM; DragHandle drag; juce::Label info, timeL; juce::Slider thr, pre; juce::ComboBox take;
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> atts; std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> takeA;
+    Pill mFile { "File", kTeal }, mEdit { "Edit", kTeal }, mSelect { "Select", kTeal }, mView { "View", kTeal }, mPlay { "Play", kTeal }, mRecord { "Record", kTeal }, mProcess { "Process", kTeal }, mHelp { "Help", kTeal }, guide { "Guide" }, about { "About & Support" };
+    Pill startNow { "Now", kPink }, startIn { "On input", kPink }, startCount { "Count-in", kPink }, takeB { "Replace", kGold }, viewW { "Waveform" }, viewS { "Spectral" };
+    IconButton loop { "loop" }, play { "play" }, stop { "stop" }, rec { "rec" }, monitor { "spk" }; Pill recOpt { juce::String::fromUTF8("\xe2\x96\xbe"), kRed };
+    Display display; Overview overview; Meter inM, outM; DragHandle drag; juce::Label readout, timeL, recHintL, opHint; juce::Slider thr, bpm, pre;
+    juce::OwnedArray<IconButton> tools, opBtns; std::vector<ToolSpec> specs; std::vector<int> opOrder; String chips[3];
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> atts;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> loopA, monA; std::unique_ptr<juce::TooltipWindow> tip; std::unique_ptr<juce::FileChooser> chooser;
     juce::Component* box = nullptr; int recMode = MeowProcessor::RecNow, seenVer = -1, statusAge = 0; String status;
 };

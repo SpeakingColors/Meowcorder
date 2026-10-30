@@ -83,7 +83,7 @@ private:
     std::atomic<int> countInLeft { 0 }, countInTotal { 0 }; std::atomic<bool> countInDone { false }; std::atomic<int64_t> countInDoneAt { 0 };
     std::atomic<double> hostBpm { 120.0 }; int clickLeft = 0; float clickPhase = 0.f, clickFreq = 1000.f;
 
-    std::atomic<float>* pThresh = nullptr; std::atomic<float>* pPre = nullptr; std::atomic<float>* pMonitor = nullptr; std::atomic<float>* pLoop = nullptr; std::atomic<float>* pTake = nullptr;
+    std::atomic<float>* pBpm = nullptr; std::atomic<float>* pThresh = nullptr; std::atomic<float>* pPre = nullptr; std::atomic<float>* pMonitor = nullptr; std::atomic<float>* pLoop = nullptr; std::atomic<float>* pTake = nullptr;
     juce::AudioFormatManager fm;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MeowProcessor)
