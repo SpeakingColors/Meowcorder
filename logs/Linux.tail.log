@@ -37,7 +37,7 @@ Call Stack (most recent call first):
   CMakeLists.txt:25 (juce_add_plugin)
 
 
--- Configuring done (94.0s)
+-- Configuring done (97.0s)
 -- Generating done (0.0s)
 -- Build files have been written to: /home/runner/work/Meowcorder/Meowcorder/build
 [ 50%] Building CXX object CMakeFiles/test_core.dir/tests/test_core.cpp.o
@@ -49,10 +49,10 @@ Test project /home/runner/work/Meowcorder/Meowcorder/build
 
 100% tests passed out of 1
 
-Total Test time (real) =   0.32 sec
-[  1%] Building VST3 manifest helper for Meowcorder
-[  3%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/src/CatLookAndFeel.cpp.o
+Total Test time (real) =   0.13 sec
 [  5%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/src/CatFrame.cpp.o
+[  5%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/src/CatLookAndFeel.cpp.o
+[  5%] Building VST3 manifest helper for Meowcorder
 [  8%] Built target test_core
 [ 10%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_gui_basics/juce_gui_basics.cpp.o
 -- The CXX compiler identification is GNU 15.2.0
@@ -118,10 +118,35 @@ Total Test time (real) =   0.32 sec
 /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:84:158: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
    84 |         if (e.mods.isShiftDown() || std::abs(w.deltaX) > std::abs(w.deltaY)) { const float d = w.deltaX != 0 && !e.mods.isShiftDown() ? w.deltaX : (w.deltaY != 0 ? w.deltaY : w.deltaX); vStart -= d * vLen * 0.5; clampView(); repaint(); }
       |                                                                                                                                                     ~~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘void {anonymous}::Overview::tick()’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:165:32: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  165 |     void tick() { if (d.vStart != lastS || d.vLen != lastL) { lastS = d.vStart; lastL = d.vLen; repaint(); } }
+      |                       ~~~~~~~~~^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:165:51: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  165 |     void tick() { if (d.vStart != lastS || d.vLen != lastL) { lastS = d.vStart; lastL = d.vLen; repaint(); } }
+      |                                            ~~~~~~~^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Overview::mouseDown(const juce::MouseEvent&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:184:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  184 |         if (frames() == 0) return; mode = hit((float) e.x);
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:184:36: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  184 |         if (frames() == 0) return; mode = hit((float) e.x);
+      |                                    ^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Overview::mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:202:102: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  202 |         if (std::abs(w.deltaX) > std::abs(w.deltaY) || e.mods.isShiftDown()) { d.vStart -= (w.deltaX != 0 ? w.deltaX : w.deltaY) * d.vLen * 0.5; d.clampView(); d.repaint(); repaint(); }
+      |                                                                                             ~~~~~~~~~^~~~
 /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp: In member function ‘virtual void MeowProcessor::prepareToPlay(double, int)’:
 /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp:39:14: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
    39 |     if (rate != sr) { sr = rate; recorder.prepare(sr, 30.0); }
       |         ~~~~~^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:282:70: warning: declaration of ‘tip’ shadows a member of ‘MeowEditor::Impl’ [-Wshadow]
+  282 |         auto knob = [&](juce::Slider& s, const char* id, const char* tip, const String& suffix) { s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 16); s.setTooltip(tip); s.setTextValueSuffix(suffix);
+      |                                                          ~~~~~~~~~~~~^~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:445:125: note: shadowed declaration is here
+  445 |     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> loopA, monA; std::unique_ptr<juce::TooltipWindow> tip; std::unique_ptr<juce::FileChooser> chooser;
+      |                                                                                                                             ^~~
 /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp: In member function ‘bool MeowProcessor::saveFile(const juce::File&, bool)’:
 /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp:159:68: warning: ‘juce::AudioFormatWriter* juce::AudioFormat::createWriterFor(juce::OutputStream*, double, unsigned int, int, const juce::StringPairArray&, int)’ is deprecated: Use the function taking an AudioFormatWriterOptions instead. [-Wdeprecated-declarations]
   159 |     std::unique_ptr<juce::AudioFormatWriter> w(fmt->createWriterFor(os.get(), a.sr, 2, 24, {}, 0)); if (!w) return false;
@@ -133,19 +158,12 @@ In file included from /home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-s
 /home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-src/modules/juce_audio_formats/format/juce_AudioFormat.h:179:24: note: declared here
   179 |     AudioFormatWriter* createWriterFor (OutputStream* streamToWriteTo,
       |                        ^~~~~~~~~~~~~~~
-/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In lambda function:
-/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:220:70: warning: declaration of ‘tip’ shadows a member of ‘MeowEditor::Impl’ [-Wshadow]
-  220 |         auto knob = [&](juce::Slider& s, const char* id, const char* tip, const String& suffix) { s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 16); s.setTooltip(tip); s.setTextValueSuffix(suffix);
-      |                                                          ~~~~~~~~~~~~^~~
-/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:382:125: note: shadowed declaration is here
-  382 |     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> loopA, monA; std::unique_ptr<juce::TooltipWindow> tip; std::unique_ptr<juce::FileChooser> chooser;
-      |                                                                                                                             ^~~
 /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void MeowEditor::mouseDoubleClick(const juce::MouseEvent&)’:
-/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:398:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
-  398 |     if (!impl) return; const auto p = e.getEventRelativeTo(this).getPosition(); if (p.x < kCheek * impl->scale() || p.x > getWidth() - kCheek * impl->scale()) setSize(kBaseW, kBaseH);
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:461:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  461 |     if (!impl) return; const auto p = e.getEventRelativeTo(this).getPosition(); if (p.x < kCheek * impl->scale() || p.x > getWidth() - kCheek * impl->scale()) setSize(kBaseW, kBaseH);
       |     ^~
-/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:398:24: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
-  398 |     if (!impl) return; const auto p = e.getEventRelativeTo(this).getPosition(); if (p.x < kCheek * impl->scale() || p.x > getWidth() - kCheek * impl->scale()) setSize(kBaseW, kBaseH);
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:461:24: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  461 |     if (!impl) return; const auto p = e.getEventRelativeTo(this).getPosition(); if (p.x < kCheek * impl->scale() || p.x > getWidth() - kCheek * impl->scale()) setSize(kBaseW, kBaseH);
       |                        ^~~~~
 [ 38%] Building CXX object CMakeFiles/Meowcorder.dir/_deps/juce-src/modules/juce_gui_basics/juce_gui_basics.cpp.o
 In file included from /home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-src/modules/juce_core/system/juce_StandardHeader.h:108,
@@ -179,22 +197,22 @@ In file included from /home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-s
 [ 68%] Building CXX object CMakeFiles/Meowcorder.dir/_deps/juce-src/modules/juce_audio_devices/juce_audio_devices.cpp.o
 [ 70%] Linking CXX static library Meowcorder_artefacts/Release/libMeowcorder_SharedCode.a
 [ 70%] Built target Meowcorder
-[ 71%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX.cpp.o
-[ 75%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX.cpp.o
+[ 73%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX.cpp.o
+[ 73%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX.cpp.o
 [ 75%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX_utils.cpp.o
 [ 76%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_AAX_utils.cpp.o
-[ 78%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_ARA.cpp.o
-[ 80%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_ARA.cpp.o
-[ 81%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_LV2.cpp.o
-[ 83%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_LV2.cpp.o
-[ 86%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp.o
-[ 86%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp.o
-[ 88%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Unity.cpp.o
-[ 90%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Unity.cpp.o
-[ 93%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp.o
-[ 93%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp.o
-[ 95%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp.o
-[ 96%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp.o
+[ 78%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_ARA.cpp.o
+[ 80%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_LV2.cpp.o
+[ 81%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp.o
+[ 83%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_ARA.cpp.o
+[ 86%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp.o
+[ 86%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Unity.cpp.o
+[ 88%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_LV2.cpp.o
+[ 90%] Building CXX object CMakeFiles/Meowcorder_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp.o
+[ 91%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp.o
+[ 93%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_Unity.cpp.o
+[ 95%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp.o
+[ 96%] Building CXX object CMakeFiles/Meowcorder_Standalone.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST3.cpp.o
 [ 98%] Linking CXX executable Meowcorder_artefacts/Release/Standalone/Meowcorder
 [ 98%] Built target Meowcorder_Standalone
 [100%] Linking CXX shared module Meowcorder_artefacts/Release/VST3/Meowcorder.vst3/Contents/x86_64-linux/Meowcorder.so
@@ -202,7 +220,7 @@ removing moduleinfo.json
 creating /home/runner/work/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.vst3/Contents/Resources/moduleinfo.json
 [100%] Built target Meowcorder_VST3
 Started validating: /home/runner/work/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.vst3
-Random seed: 0x7b30aa7
+Random seed: 0x3bae0d4
 Validation started
 Strictness level: 5
 -----------------------------------------------------------------
@@ -318,6 +336,6 @@ Main bus num output channels: 2
 Completed tests in pluginval / Restoring default layout
 SUCCESS
 ALSA lib seq_hw.c:540:(snd_seq_hw_open) [error.sequencer] open /dev/snd/seq failed: No such file or directory
--rw-r--r-- 1 runner runner 177854 Oct 29 23:59 snap1.png
+-rw-r--r-- 1 runner runner 184010 Oct 30 00:00 snap1.png
 ALSA lib seq_hw.c:540:(snd_seq_hw_open) [error.sequencer] open /dev/snd/seq failed: No such file or directory
--rw-r--r-- 1 runner runner 486420 Oct 29 23:59 snap2.png
+-rw-r--r-- 1 runner runner 467526 Oct 30 00:00 snap2.png
