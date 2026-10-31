@@ -1044,7 +1044,7 @@ struct MeowEditor::Impl
     float scale() const { return (float) owner.getWidth() / (float) kBaseW; }
     void layout()
     {
-        int x = 14; for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mSpectral, &mWarp, &mHelp }) { const int w = juce::roundToInt(textW(b->getButtonText().toUpperCase())) + 22; b->setBounds(x, 92, w, 28); x += w + 4; }
+        int x = 14; for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mSpectral, &mWarp, &mHelp }) { const int w = juce::roundToInt(textW(b->getButtonText().toUpperCase())) + 14; b->setBounds(x, 92, w, 28); x += w + 3; }
         guide.setBounds(900, 20, 90, 34); about.setBounds(1000, 20, 130, 34);
         loop.setBounds(14, 126, 36, 34); play.setBounds(54, 126, 36, 34); stop.setBounds(94, 126, 36, 34); rec.setBounds(134, 126, 36, 34); recOpt.setBounds(172, 126, 18, 34);
         startNow.setBounds(204, 129, 66, 28); startIn.setBounds(274, 129, 92, 28); startCount.setBounds(370, 129, 86, 28); takeB.setBounds(464, 129, 110, 28);
@@ -1055,9 +1055,10 @@ struct MeowEditor::Impl
         x = 14; for (auto& sp : specs) { if (sp.gapBefore) x += 10; sp.b->setBounds(x, 244, 30, 30); x += 33; }
         monitor.setBounds(x + 10, 244, 30, 30);
         readout.setBounds(14, 282, 1010, 20); chCh.setBounds(14, 308, 78, 20); chSr.setBounds(96, 308, 96, 20); chBit.setBounds(196, 308, 128, 20); chUnit.setBounds(328, 308, 110, 20); chTempo.setBounds(442, 308, 108, 20); chSync.setBounds(554, 308, 70, 20); toolHintL.setBounds(664, 300, 360, 30);
+        viewW.setBounds(62, 332, 96, 26); viewS.setBounds(162, 332, 96, 26); viewP.setBounds(262, 332, 96, 26); vComb.setBounds(364, 330, 30, 30); layoutB.setBounds(398, 332, 80, 26); frontB.setBounds(482, 332, 150, 26); vPen.setBounds(640, 330, 30, 30);
         { int tx = 14; for (auto* b : sTools) { b->setBounds(tx, 366, 30, 30); tx += 33; } ampCb.setBounds(tx + 6, 368, 112, 26); penCb.setBounds(tx + 124, 368, 112, 26); brushCb.setBounds(tx + 242, 368, 130, 26); }
-        snapAllB.setBounds(14, 368, 190, 26); fFollow.setBounds(212, 368, 130, 26); fKeep.setBounds(346, 368, 130, 26); dragCb.setBounds(484, 368, 170, 26);
-        { const int dy = toolRow ? 402 : 364; display.setBounds(14, dy, 1010, 704 - dy); } overview.setBounds(14, 708, 1010, 36); live.setBounds(640, 222, 384, 20);
+        { const int py = specShown() ? 400 : 368; snapAllB.setBounds(14, py, 190, 26); fFollow.setBounds(212, py, 130, 26); fKeep.setBounds(346, py, 130, 26); dragCb.setBounds(484, py, 170, 26); }
+        { const int dy = toolRow ? (specShown() && pitchShown() ? 434 : 402) : 364; display.setBounds(14, dy, 1010, 704 - dy); } overview.setBounds(14, 708, 1010, 36); live.setBounds(640, 222, 384, 20);
         inM.setBounds(1036, 92, 52, 652); outM.setBounds(1088, 92, 52, 652); drag.setBounds(940, 756, 186, 30);
     }
     void paintContent(Graphics& g)
