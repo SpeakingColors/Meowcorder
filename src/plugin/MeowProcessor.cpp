@@ -154,11 +154,16 @@ bool MeowProcessor::loadFile(const juce::File& f)
 
 bool MeowProcessor::saveFile(const juce::File& f, bool flac)
 {
-    const auto& a = doc.audio; if (a.frames() == 0) return false;
+    if (doc.audio.frames() == 0) return false;
+    int bits = exportBits.load(); mc::Audio a = doc.audio; if (bits < 24) mc::quantize(a, bits, exportDither.load());
+    if (!flac)
+    {
+        const auto wav = mc::encodeWav(a, bits); f.deleteFile(); return f.replaceWithData(wav.data(), wav.size());
+    }
+    bits = std::min(bits, 24);   // FLAC holds up to 24 bit integers
     juce::AudioBuffer<float> b(2, (int) a.frames()); for (int c = 0; c < 2; ++c) std::copy(a.ch[c].begin(), a.ch[c].end(), b.getWritePointer(c));
     f.deleteFile(); std::unique_ptr<juce::FileOutputStream> os(f.createOutputStream()); if (!os) return false;
-    std::unique_ptr<juce::AudioFormat> fmt; if (flac) fmt = std::make_unique<juce::FlacAudioFormat>(); else fmt = std::make_unique<juce::WavAudioFormat>();
-    std::unique_ptr<juce::AudioFormatWriter> w(fmt->createWriterFor(os.get(), a.sr, 2, 24, {}, 0)); if (!w) return false;
+    juce::FlacAudioFormat fmt; std::unique_ptr<juce::AudioFormatWriter> w(fmt.createWriterFor(os.get(), a.sr, 2, bits, {}, 0)); if (!w) return false;
     os.release(); return w->writeFromAudioSampleBuffer(b, 0, b.getNumSamples());
 }
 

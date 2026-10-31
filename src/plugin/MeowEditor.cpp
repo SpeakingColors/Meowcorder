@@ -19,18 +19,22 @@ class Pill : public juce::Button
 {
 public:
     explicit Pill(const String& t, Colour c = kPink) : juce::Button(t), col(c) {}
-    Colour col; bool flash = false;
+    Colour col; bool flash = false, raw = false;
     void paintButton(Graphics& g, bool over, bool down) override
     {
         auto r = getLocalBounds().toFloat().reduced(0.5f); const bool on = getToggleState() || flash;
         g.setColour(on ? col.withAlpha(0.22f) : (over ? Colour(0xff25272e) : Colour(0xff1b1c21))); g.fillRoundedRectangle(r, 3.f);
         g.setColour(on ? col : Colour(0xff3a3d46)); g.drawRoundedRectangle(r, 3.f, on ? 1.5f : 1.f);
-        g.setColour(on ? col : (down ? kGold : kText)); g.setFont(sans(13.f, true)); g.drawFittedText(getButtonText().toUpperCase(), getLocalBounds().reduced(3, 0), juce::Justification::centred, 1);
+        g.setColour(on ? col : (down ? kGold : kText)); g.setFont(sans(13.f, true)); g.drawFittedText(raw ? getButtonText() : getButtonText().toUpperCase(), getLocalBounds().reduced(3, 0), juce::Justification::centred, 1);
     }
 };
 
+int gUnit = 0; double gUnitSr = 44100.0, gUnitBpm = 120.0;   // time line unit: 0 minutes:seconds, 1 seconds, 2 samples, 3 bars:beats
 String timeText(double sec, bool fine = true)
 {
+    if (gUnit == 1) return String(sec, fine ? 3 : 1) + " s";
+    if (gUnit == 2) return String((juce::int64) std::llround(sec * gUnitSr));
+    if (gUnit == 3) { const double beats = sec * gUnitBpm / 60.0; const int bar = (int) std::floor(beats / 4.0) + 1; const double inBar = beats - std::floor(beats / 4.0) * 4.0; return String(bar) + "." + String(inBar + 1.0, fine ? 2 : 1); }
     const int m = (int) (sec / 60.0); const double s = sec - m * 60.0;
     return String(m) + ":" + String(s, fine ? 2 : 0).paddedLeft('0', fine ? 5 : 2);
 }
@@ -313,7 +317,7 @@ struct MeowEditor::Impl
     Impl(MeowEditor& o, MeowProcessor& pr) : owner(o), p(pr), gate(o), display(pr), overview(pr, display), inM("IN"), outM("OUT"), drag(pr, &o)
     {
         o.setLookAndFeel(&laf); o.addAndMakeVisible(content); auto& c = content;
-        for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp, &guide, &about, &startNow, &startIn, &startCount, &takeB, &viewW, &viewS }) c.addAndMakeVisible(*b);
+        for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp, &guide, &about, &startNow, &startIn, &startCount, &takeB, &viewW, &viewS, &chCh, &chSr, &chBit, &chUnit }) c.addAndMakeVisible(*b);
         for (auto* b : { &loop, &play, &stop, &rec, &monitor }) c.addAndMakeVisible(*b); c.addAndMakeVisible(recOpt);
         c.addAndMakeVisible(display); c.addAndMakeVisible(overview); c.addAndMakeVisible(inM); c.addAndMakeVisible(outM); c.addAndMakeVisible(drag);
         for (auto* l : { &readout, &timeL, &recHintL, &opHint }) c.addAndMakeVisible(*l);
@@ -326,6 +330,9 @@ struct MeowEditor::Impl
         loopA = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.apvts, "loop", loop); monA = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.apvts, "monitor", monitor);
         loop.setClickingTogglesState(true); monitor.setClickingTogglesState(true);
         viewW.setClickingTogglesState(false); viewS.setClickingTogglesState(false); viewW.setToggleState(true, juce::dontSendNotification);
+        chCh.onClick = [this] { menu(chCh, channelMenu()); }; chSr.onClick = [this] { menu(chSr, rateMenu()); }; chBit.onClick = [this] { menu(chBit, bitMenu()); }; chUnit.onClick = [this] { menu(chUnit, unitMenu()); };
+        chCh.setTooltip("Channels. Click to mix to mono, swap sides or use mid and side."); chSr.setTooltip("Sample rate. Click to convert the sound to another rate."); chBit.setTooltip("Export bit depth. Click to choose."); for (auto* c2 : { &chCh, &chSr, &chBit, &chUnit }) c2->raw = true;
+        chUnit.setTooltip("Time line unit. Click to choose.");
         viewW.onClick = [this] { setSpectral(false); }; viewS.onClick = [this] { setSpectral(true); };
         loop.setTooltip("Repeat playback."); play.setTooltip("Play the selection, or from the cursor (Space)."); stop.setTooltip("Stop (Space or Esc)."); rec.setTooltip("Record (R). Press again to stop and keep the take."); recOpt.setTooltip("Record options: start mode and what a take does.");
         monitor.setTooltip("Hear the input while recording.");
@@ -355,13 +362,14 @@ struct MeowEditor::Impl
     void buildTools()
     {
         auto& c = content; auto& d = p.doc; const std::function<bool()> frames = [this] { return p.doc.audio.frames() > 0; }; const std::function<bool()> sel = [this] { return p.doc.hasSelection(); };
-        auto add = [&](const char* ic, const String& tipText, bool gap, std::function<void()> f, std::function<bool()> en) { auto* b = tools.add(new IconButton(ic)); b->setTooltip(tipText); b->onClick = std::move(f); c.addAndMakeVisible(b); specs.push_back({ b, gap, std::move(en) }); };
+        auto add = [&](const char* ic, const String& tipText, bool gap, std::function<void()> f, std::function<bool()> en) { auto* b = tools.add(new IconButton(ic)); b->setTooltip(tipText); b->onClick = std::move(f); c.addAndMakeVisible(b); specs.push_back({ b, gap, std::move(en) }); return b; };
         auto edit = [this](std::function<void()> f) { return [this, f] { p.stopPlay(); f(); p.changed(); }; };
         add("new", "New, an empty sound.", false, [this] { p.newSound(); display.fitAll(); }, {});
         add("open", "Open a sound from a file.", false, [this] { openFile(); }, {});
         add("save", "Export the sound as a 24 bit WAV file.", false, [this] { saveFile(false); }, frames);
         add("undo", "Undo (Ctrl+Z).", true, [this] { doUndo(); }, [this] { return p.doc.canUndo(); });
         add("redo", "Redo (Ctrl+Y).", false, [this] { doRedo(); }, [this] { return p.doc.canRedo(); });
+        { auto* hb = add("hist", "History: every step so far. Click one to go back to it, or forward again.", false, {}, frames); hb->onClick = [this, hb] { menu(*hb, historyMenu()); }; }
         add("cut", "Cut the selection (Ctrl+X).", true, edit([&d] { d.cut(); }), sel);
         add("copy", "Copy the selection (Ctrl+C).", false, [&d] { d.copy(); }, sel);
         add("paste", "Paste at the cursor, or over the selection (Ctrl+V).", false, edit([&d] { d.paste(); }), [this] { return p.doc.clipboard().frames() > 0; });
@@ -452,6 +460,45 @@ struct MeowEditor::Impl
         item("Cut", "Ctrl+X", d.hasSelection(), chg([&d] { d.cut(); })); item("Copy", "Ctrl+C", d.hasSelection(), [&d] { d.copy(); }); item("Paste", "Ctrl+V", d.clipboard().frames() > 0, chg([&d] { d.paste(); }));
         item("Delete", "Del", d.hasSelection(), chg([&d] { d.deleteSelection(); })); item("Crop to selection", "Ctrl+T", d.hasSelection(), chg([&d] { d.cropToSelection(); })); return m;
     }
+    // History: Original, then every step done; the undone ones stay below in grey until a new edit replaces them
+    juce::PopupMenu historyMenu()
+    {
+        juce::PopupMenu m; const auto h = p.doc.history(); const int nd = (int) h.done.size();
+        auto go = [this](int k) { p.stopPlay(); p.doc.jumpTo((size_t) k); p.changed(); };
+        m.addItem("Original", true, nd == 0, [go] { go(0); });
+        for (int i = 0; i < nd; ++i) m.addItem(String(i + 1) + "  " + String(h.done[(size_t) i]), true, i + 1 == nd, [go, i] { go(i + 1); });
+        for (size_t j = 0; j < h.undone.size(); ++j) { const int k = nd + 1 + (int) j; m.addItem(String(k) + "  " + String(h.undone[j]) + "  (undone)", true, false, [go, k] { go(k); }); }
+        return m;
+    }
+    juce::PopupMenu channelMenu()
+    {
+        juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0;
+        auto op = [this](const char* label, mc::ChannelKind k) { return [this, label, k] { p.stopPlay(); p.doc.transform(label, [k](mc::Audio& a) { mc::channelOp(a, k); }); p.changed(); }; };
+        m.addItem("Mix down to mono", has, false, op("Mix to mono", mc::ChannelKind::Mix)); m.addItem("Left to both sides", has, false, op("Left to both", mc::ChannelKind::Left));
+        m.addItem("Right to both sides", has, false, op("Right to both", mc::ChannelKind::Right)); m.addItem("Swap left and right", has, false, op("Swap channels", mc::ChannelKind::Swap)); m.addSeparator();
+        m.addItem("Mid and side: encode", has, false, op("Mid/side encode", mc::ChannelKind::MidSideEnc)); m.addItem("Mid and side: decode", has, false, op("Mid/side decode", mc::ChannelKind::MidSideDec)); return m;
+    }
+    juce::PopupMenu rateMenu()
+    {
+        juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0; const double cur = p.doc.audio.sr;
+        for (double r : { 8000.0, 11025.0, 16000.0, 22050.0, 32000.0, 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0 })
+            m.addItem(String(r / 1000.0, 3).trimCharactersAtEnd("0").trimCharactersAtEnd(".") + " kHz", has, std::abs(cur - r) < 0.5, [this, r] { p.stopPlay(); p.doc.transform("Convert to " + String(r, 0) + " Hz", [r](mc::Audio& a) { a = mc::resample(a, r); }); p.doc.setCursor(0); p.changed(); });
+        m.addSeparator(); m.addItem("Converting changes the sound itself; it keeps its length in seconds.", false, false, [] {}); return m;
+    }
+    juce::PopupMenu bitMenu()
+    {
+        juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0; const int cur = p.exportBits.load();
+        for (int b : { 8, 16, 24, 32 }) m.addItem(String(b) + (b == 32 ? " bit float (WAV only)" : " bit") + " export", true, cur == b, [this, b] { p.exportBits = b; refreshInfo(); repaintChips(); });
+        m.addSeparator(); m.addItem("Dither when exporting below 24 bit", true, p.exportDither.load(), [this] { p.exportDither = !p.exportDither.load(); });
+        m.addItem("Round the sound itself to " + String(std::min(cur, 24)) + " bit now", has && cur < 24, false, [this, cur] { p.stopPlay(); const bool d = p.exportDither.load(); p.doc.transform("Round to " + String(cur) + " bit", [cur, d](mc::Audio& a) { mc::quantize(a, cur, d); }); p.changed(); }); return m;
+    }
+    juce::PopupMenu unitMenu()
+    {
+        juce::PopupMenu m; const char* names[] = { "Minutes and seconds", "Seconds", "Samples", "Bars and beats (4/4, at the tempo knob)" };
+        for (int i = 0; i < 4; ++i) m.addItem(names[i], true, gUnit == i, [this, i] { gUnit = i; refreshInfo(); display.repaint(); overview.repaint(); repaintChips(); });
+        return m;
+    }
+    void repaintChips() { updateChips(); }
     juce::PopupMenu selectMenu()
     {
         juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0;
@@ -512,9 +559,15 @@ struct MeowEditor::Impl
         return false;
     }
 
+    void updateChips()
+    {
+        const auto& a = p.doc.audio; const int bits = p.exportBits.load(); const char* un[] = { "min:sec", "seconds", "samples", "bars:beats" };
+        chCh.setButtonText(mc::isMonoAudio(a) && a.frames() > 0 ? "Mono" : "Stereo"); chSr.setButtonText(String(a.sr / 1000.0, 1) + " kHz"); chBit.setButtonText(bits == 32 ? "32 bit float" : String(bits) + " bit"); chUnit.setButtonText(un[gUnit]);
+        gUnitSr = a.sr > 0 ? a.sr : 44100.0; gUnitBpm = p.hostBpm.load();
+    }
     void refreshInfo()
     {
-        const auto& a = p.doc.audio; chips[0] = "Stereo"; chips[1] = String(a.sr / 1000.0, 1) + " kHz"; chips[2] = "24 bit export";
+        updateChips(); const auto& a = p.doc.audio;
         if (a.frames() == 0) { readout.setText("Length 0:00.000   Selection none   Cursor 0:00.000", juce::dontSendNotification); return; }
         String s = "Length " + timeText((double) a.frames() / a.sr) + "   Selection ";
         s += p.doc.hasSelection() ? timeText((double) p.doc.selA / a.sr) + " to " + timeText((double) p.doc.selB / a.sr) : String("none, operations use everything");
@@ -563,7 +616,7 @@ struct MeowEditor::Impl
         opHint.setBounds(640, 158, 384, 60);
         x = 14; for (auto& sp : specs) { if (sp.gapBefore) x += 10; sp.b->setBounds(x, 244, 30, 30); x += 33; }
         monitor.setBounds(x + 10, 244, 30, 30);
-        readout.setBounds(14, 282, 1010, 20); viewW.setBounds(62, 332, 96, 26); viewS.setBounds(162, 332, 96, 26);
+        readout.setBounds(14, 282, 1010, 20); chCh.setBounds(14, 308, 78, 20); chSr.setBounds(96, 308, 96, 20); chBit.setBounds(196, 308, 128, 20); chUnit.setBounds(328, 308, 110, 20); viewW.setBounds(62, 332, 96, 26); viewS.setBounds(162, 332, 96, 26);
         display.setBounds(14, 364, 1010, 340); overview.setBounds(14, 708, 1010, 36);
         inM.setBounds(1036, 92, 52, 652); outM.setBounds(1088, 92, 52, 652); drag.setBounds(940, 756, 186, 30);
     }
@@ -576,17 +629,17 @@ struct MeowEditor::Impl
         g.setColour(kDim); g.setFont(sans(10.5f, true));
         g.drawText("THRESHOLD", 6, 166, 82, 12, juce::Justification::centred); g.drawText("TEMPO", 80, 166, 82, 12, juce::Justification::centred); g.drawText("PRE-ROLL", 154, 166, 82, 12, juce::Justification::centred);
         g.drawText("VIEW", 14, 332, 44, 26, juce::Justification::left);
-        int cx = 14; for (int i = 0; i < 3; ++i) { const int w = i == 1 ? 96 : (i == 2 ? 128 : 78); auto r = juce::Rectangle<float>((float) cx, 308.f, (float) w, 20.f); g.setColour(kPanel); g.fillRoundedRectangle(r, 3.f); g.setColour(kEdge); g.drawRoundedRectangle(r.reduced(0.5f), 3.f, 1.f); g.setColour(kText); g.setFont(mono(12.f)); g.drawText(chips[i], r.toNearestInt(), juce::Justification::centred); cx += w + 6; }
         g.setColour(kDim); g.setFont(mono(11.f)); g.drawText(status.isNotEmpty() ? status : String("STUDIO 87 | MEOWCORDER | hover a control for help | collects nothing, no network"), 14, 764, 800, 16, juce::Justification::left);
     }
 
     struct Content : juce::Component { Impl& i; explicit Content(Impl& x) : i(x) {} void paint(Graphics& g) override { i.paintContent(g); } } content { *this };
     MeowEditor& owner; MeowProcessor& p; catui::CatLookAndFeel laf; juce::ComponentBoundsConstrainer constrainer; catui::RenderGate gate;
     Pill mFile { "File", kTeal }, mEdit { "Edit", kTeal }, mSelect { "Select", kTeal }, mView { "View", kTeal }, mPlay { "Play", kTeal }, mRecord { "Record", kTeal }, mProcess { "Process", kTeal }, mHelp { "Help", kTeal }, guide { "Guide" }, about { "About & Support" };
+    Pill chCh { "Stereo", kTeal }, chSr { "44.1 kHz", kTeal }, chBit { "24 bit", kTeal }, chUnit { "min:sec", kTeal };
     Pill startNow { "Now", kPink }, startIn { "On input", kPink }, startCount { "Count-in", kPink }, takeB { "Replace", kGold }, viewW { "Waveform" }, viewS { "Spectral" };
     IconButton loop { "loop" }, play { "play" }, stop { "stop" }, rec { "rec" }, monitor { "spk" }; Pill recOpt { juce::String::fromUTF8("\xe2\x96\xbe"), kRed };
     Display display; Overview overview; Meter inM, outM; DragHandle drag; juce::Label readout, timeL, recHintL, opHint; juce::Slider thr, bpm, pre;
-    juce::OwnedArray<IconButton> tools, opBtns; std::vector<ToolSpec> specs; std::vector<int> opOrder; String chips[3];
+    juce::OwnedArray<IconButton> tools, opBtns; std::vector<ToolSpec> specs; std::vector<int> opOrder; 
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> atts;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> loopA, monA; std::unique_ptr<juce::TooltipWindow> tip; std::unique_ptr<juce::FileChooser> chooser;
     juce::Component* box = nullptr; int recMode = MeowProcessor::RecNow, seenVer = -1, statusAge = 0; String status;

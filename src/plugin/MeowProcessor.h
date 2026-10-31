@@ -42,6 +42,7 @@ public:
     void changed() { ++ver; }       // call after any change to doc
     bool loadFile(const juce::File&);
     bool saveFile(const juce::File&, bool flac);
+    std::atomic<int> exportBits { 24 }; std::atomic<bool> exportDither { false };   // export word length (8, 16, 24, 32 float) and dither when rounding
     juce::File exportTempWav();     // for dragging the sound into the host
     void newSound();
 

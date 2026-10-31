@@ -37,12 +37,12 @@ static void testTable()
 static void testWav()
 {
     Audio a = sine (440, 0.1f, 0.8f);
-    for (int bits : { 16, 24, 32 })
+    for (int bits : { 8, 16, 24, 32 })
     {
         const auto w = encodeWav (a, bits); Audio b; CHECK (decodeWav (w.data(), w.size(), b));
         CHECK (b.frames() == a.frames() && b.sr == a.sr);
         double err = 0; for (size_t i = 0; i < a.frames(); ++i) err = std::max (err, (double) std::fabs (a.ch[0][i] - b.ch[0][i]));
-        CHECK (err < (bits == 16 ? 1e-4 : (bits == 24 ? 1e-6 : 1e-9)));
+        CHECK (err < (bits == 8 ? 1e-2 : bits == 16 ? 1e-4 : (bits == 24 ? 1e-6 : 1e-9)));
     }
     uint8_t junk[20] = { 1, 2, 3 }; Audio b; CHECK (! decodeWav (junk, 20, b)); CHECK (! decodeWav (junk, 3, b));
     auto w = encodeWav (a, 16); w.resize (60); CHECK (decodeWav (w.data(), w.size(), b) && b.frames() > 0 && b.frames() < a.frames());   // truncated file still reads what is there

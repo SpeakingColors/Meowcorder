@@ -164,6 +164,7 @@ inline std::vector<uint8_t> encodeWav (const Audio& a, int bits)
         {
             const float x = clampf (a.ch[c][i], -1.0f, 1.0f);
             if (flt) { uint32_t u; std::memcpy (&u, &x, 4); put32 (o, u); }
+            else if (bits == 8) { const int v = (int) std::lrintf (x * 127.0f) + 128; o.push_back ((uint8_t) v); }
             else if (bits == 16) { const int v = (int) std::lrintf (x * 32767.0f); put16 (o, (uint32_t) (v & 0xffff)); }
             else { const int v = (int) std::lrintf (x * 8388607.0f); o.push_back ((uint8_t) (v & 255)); o.push_back ((uint8_t) ((v >> 8) & 255)); o.push_back ((uint8_t) ((v >> 16) & 255)); }
         }
