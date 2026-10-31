@@ -25,8 +25,8 @@ Call Stack (most recent call first):
   CMakeLists.txt:28 (juce_add_plugin)
 
 
--- Configuring done (128.9s)
--- Generating done (0.2s)
+-- Configuring done (110.2s)
+-- Generating done (0.1s)
 CMake Warning (unused-cli):
   Manually-specified variables were not used by the project:
 
@@ -93,13 +93,13 @@ C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231
   test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
 Test project D:/a/Meowcorder/Meowcorder/build
     Start 1: core
-1/2 Test #1: core .............................   Passed    0.15 sec
+1/2 Test #1: core .............................   Passed    0.13 sec
     Start 2: dsp
-2/2 Test #2: dsp ..............................   Passed    0.57 sec
+2/2 Test #2: dsp ..............................   Passed    0.45 sec
 
 100% tests passed out of 2
 
-Total Test time (real) =   0.76 sec
+Total Test time (real) =   0.74 sec
 MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
 
   Checking File Globs
@@ -113,7 +113,7 @@ MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
   -- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
   -- Detecting CXX compile features
   -- Detecting CXX compile features - done
-  -- Configuring done (1.9s)
+  -- Configuring done (1.4s)
   -- Generating done (0.0s)
   -- Build files have been written to: D:/a/Meowcorder/Meowcorder/build/vst3_helpers/Meowcorder
   MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
@@ -127,10 +127,10 @@ MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
   Building Custom Rule D:/a/Meowcorder/Meowcorder/build/_deps/cat_ui-src/CMakeLists.txt
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
+cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   CatLookAndFeel.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   CatFrame.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   juce_gui_basics.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   juce_gui_basics_2.cpp
@@ -156,10 +156,10 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   juce_audio_processors.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
   juce_gui_extra.cpp
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowProcessor.cpp(207,79): warning C4996: 'juce::AudioFormat::createWriterFor': Use the function taking an AudioFormatWriterOptions instead. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowProcessor.cpp(213,79): warning C4996: 'juce::AudioFormat::createWriterFor': Use the function taking an AudioFormatWriterOptions instead. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
 D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(293,70): warning C4100: 'alpha': unreferenced parameter [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(672,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(1012,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(688,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(1038,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
   juce_gui_basics.cpp
   juce_gui_basics_2.cpp
   juce_gui_basics_3.cpp
@@ -185,10 +185,10 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
   juce_audio_plugin_client_AAX.cpp
-  juce_audio_plugin_client_AAX_utils.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
+cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
+  juce_audio_plugin_client_AAX_utils.cpp
   juce_audio_plugin_client_ARA.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
   juce_audio_plugin_client_LV2.cpp
@@ -200,9 +200,9 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   Meowcorder_VST3.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3\Contents\x86_64-win\Meowcorder.vst3
   removing moduleinfo.json
   creating D:/a/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.vst3/Contents/Resources/moduleinfo.json
+  test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
   test_core.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_core.exe
-  test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
@@ -219,7 +219,7 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   Meowcorder_Standalone.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\Standalone\Meowcorder.exe
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
 Started validating: D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3
-Random seed: 0x57ac6f7
+Random seed: 0x3df9c1f
 Validation started
 Strictness level: 5
 -----------------------------------------------------------------
