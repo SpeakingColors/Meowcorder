@@ -25,8 +25,8 @@ Call Stack (most recent call first):
   CMakeLists.txt:28 (juce_add_plugin)
 
 
--- Configuring done (138.3s)
--- Generating done (0.1s)
+-- Configuring done (128.9s)
+-- Generating done (0.2s)
 CMake Warning (unused-cli):
   Manually-specified variables were not used by the project:
 
@@ -45,21 +45,21 @@ C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231
   (compiling source file '../tests/test_core.cpp')
       C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1227,17):
       the template instantiation context (the oldest one first) is
-          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,93):
-          see reference to function template instantiation 'std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>> std::vector<_Ty,std::allocator<_Ty>>::insert<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,0>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,_Iter)' being compiled
+          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(56,131):
+          see reference to function template instantiation 'std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>> std::vector<_Ty,std::allocator<_Ty>>::insert<std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,0>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,_Iter)' being compiled
           with
           [
               _Ty=float,
-              _Iter=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>
+              _Iter=std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<float>>>
           ]
-              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,100):
-              see the first reference to 'std::vector<float,std::allocator<float>>::insert' in 'mc::applyOp'
+              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(56,138):
+              see the first reference to 'std::vector<float,std::allocator<float>>::insert' in 'mc::Audio::splice'
           C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1285,13):
-          see reference to function template instantiation 'void std::vector<float,std::allocator<float>>::_Insert_counted_range<float*>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,const unsigned __int64)' being compiled
+          see reference to function template instantiation 'void std::vector<float,std::allocator<float>>::_Insert_counted_range<const float*>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,const unsigned __int64)' being compiled
           with
           [
               _Ty=float,
-              _Iter=float *
+              _Iter=const float *
           ]
   
   test_core.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_core.exe
@@ -73,33 +73,33 @@ C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231
   (compiling source file '../tests/test_dsp.cpp')
       C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1227,17):
       the template instantiation context (the oldest one first) is
-          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,93):
-          see reference to function template instantiation 'std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>> std::vector<_Ty,std::allocator<_Ty>>::insert<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,0>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,_Iter)' being compiled
+          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(56,131):
+          see reference to function template instantiation 'std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>> std::vector<_Ty,std::allocator<_Ty>>::insert<std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,0>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,_Iter)' being compiled
           with
           [
               _Ty=float,
-              _Iter=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>
+              _Iter=std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<float>>>
           ]
-              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,100):
-              see the first reference to 'std::vector<float,std::allocator<float>>::insert' in 'mc::applyOp'
+              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(56,138):
+              see the first reference to 'std::vector<float,std::allocator<float>>::insert' in 'mc::Audio::splice'
           C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1285,13):
-          see reference to function template instantiation 'void std::vector<float,std::allocator<float>>::_Insert_counted_range<float*>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,const unsigned __int64)' being compiled
+          see reference to function template instantiation 'void std::vector<float,std::allocator<float>>::_Insert_counted_range<const float*>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,const unsigned __int64)' being compiled
           with
           [
               _Ty=float,
-              _Iter=float *
+              _Iter=const float *
           ]
   
   test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
 Test project D:/a/Meowcorder/Meowcorder/build
     Start 1: core
-1/2 Test #1: core .............................   Passed    0.14 sec
+1/2 Test #1: core .............................   Passed    0.15 sec
     Start 2: dsp
-2/2 Test #2: dsp ..............................   Passed    0.46 sec
+2/2 Test #2: dsp ..............................   Passed    0.57 sec
 
 100% tests passed out of 2
 
-Total Test time (real) =   0.83 sec
+Total Test time (real) =   0.76 sec
 MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
 
   Checking File Globs
@@ -113,7 +113,7 @@ MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
   -- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
   -- Detecting CXX compile features
   -- Detecting CXX compile features - done
-  -- Configuring done (1.6s)
+  -- Configuring done (1.9s)
   -- Generating done (0.0s)
   -- Build files have been written to: D:/a/Meowcorder/Meowcorder/build/vst3_helpers/Meowcorder
   MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
@@ -127,10 +127,10 @@ MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
   Building Custom Rule D:/a/Meowcorder/Meowcorder/build/_deps/cat_ui-src/CMakeLists.txt
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   CatLookAndFeel.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   CatFrame.cpp
+cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   juce_gui_basics.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
   juce_gui_basics_2.cpp
@@ -156,14 +156,15 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   juce_audio_processors.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
   juce_gui_extra.cpp
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowProcessor.cpp(166,79): warning C4996: 'juce::AudioFormat::createWriterFor': Use the function taking an AudioFormatWriterOptions instead. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(456,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(744,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowProcessor.cpp(207,79): warning C4996: 'juce::AudioFormat::createWriterFor': Use the function taking an AudioFormatWriterOptions instead. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(293,70): warning C4100: 'alpha': unreferenced parameter [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(672,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(1012,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
   juce_gui_basics.cpp
   juce_gui_basics_2.cpp
   juce_gui_basics_3.cpp
-  juce_gui_basics_4.cpp
 D:\a\Meowcorder\Meowcorder\build\_deps\juce-src\modules\juce_gui_basics\juce_gui_basics.cpp(61): warning : This version of JUCE does not use the splash screen, the flag JUCE_DISPLAY_SPLASH_SCREEN is ignored [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
+  juce_gui_basics_4.cpp
   juce_gui_basics_5.cpp
   juce_graphics.cpp
   juce_graphics_Harfbuzz.cpp
@@ -184,8 +185,8 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-  juce_audio_plugin_client_AAX.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
+  juce_audio_plugin_client_AAX.cpp
   juce_audio_plugin_client_AAX_utils.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
   juce_audio_plugin_client_ARA.cpp
@@ -200,8 +201,9 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   removing moduleinfo.json
   creating D:/a/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.vst3/Contents/Resources/moduleinfo.json
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-  test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
   test_core.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_core.exe
+  test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
+cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
   juce_audio_plugin_client_AAX.cpp
@@ -209,7 +211,6 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   juce_audio_plugin_client_AAX_utils.cpp
 cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
   juce_audio_plugin_client_ARA.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
   juce_audio_plugin_client_LV2.cpp
   juce_audio_plugin_client_Standalone.cpp
   juce_audio_plugin_client_Unity.cpp
@@ -218,7 +219,7 @@ cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder
   Meowcorder_Standalone.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\Standalone\Meowcorder.exe
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
 Started validating: D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3
-Random seed: 0x5cf3d2d
+Random seed: 0x57ac6f7
 Validation started
 Strictness level: 5
 -----------------------------------------------------------------
