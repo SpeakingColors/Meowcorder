@@ -124,9 +124,18 @@ static void testHistory()
     CHECK (s.spectralCopy (r) && s.hasSpectralClip()); CHECK (s.spectralPaste (1000, 6000)); CHECK (s.history().done.back() == "Spectral paste"); s.undo(); s.undo(); CHECK (s.history().done.empty());
     Editor z; CHECK (!z.spectralEdit (true, { r }, 0.f) && !z.transform ("x", [] (Audio&) {}));
 }
+static void testHitsAndSplice()
+{
+    // four clicks half a second apart are found, within a few ms
+    Audio c; c.sr = 48000; c.resize (96000); for (int k = 0; k < 4; ++k) for (int i = 0; i < 600; ++i) { const float v = 0.9f * std::exp (-i / 120.f) * (i % 2 ? 1.f : -1.f); c.ch[0][(size_t) (k * 24000 + 4000 + i)] = v; c.ch[1][(size_t) (k * 24000 + 4000 + i)] = v; }
+    const auto h = detectTransients (c, 0.6); CHECK (h.size() == 4); for (size_t k = 0; k < h.size() && k < 4; ++k) CHECK (std::llabs ((long long) h[k] - (long long) (k * 24000 + 4000)) < 700);
+    Audio quiet; quiet.sr = 48000; quiet.resize (96000); CHECK (detectTransients (quiet, 0.6).empty()); Audio tiny; tiny.resize (300); CHECK (detectTransients (tiny, 0.6).empty());
+    // splice: replace the middle with a different length
+    Audio a = sines ({ 440 }, 0.1, 0.5f); const size_t n = a.frames(); Audio w; w.sr = a.sr; w.resize (50); a.splice (1000, 2000, w); CHECK (a.frames() == n - 1000 + 50); CHECK (a.ch[0][1000] == 0.f && a.ch[1][1049] == 0.f);
+}
 
 int main()
 {
-    testResample(); testStretchAndPitch(); testWarp(); testSpectral(); testDetect(); testFormat(); testPencil(); testHistory();
+    testResample(); testStretchAndPitch(); testWarp(); testSpectral(); testDetect(); testFormat(); testPencil(); testHistory(); testHitsAndSplice();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

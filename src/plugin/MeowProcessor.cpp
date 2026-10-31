@@ -133,11 +133,52 @@ void MeowProcessor::stopRecord()
 void MeowProcessor::play()
 {
     if (doc.audio.frames() < 2) return;
-    auto copy = std::make_shared<const mc::Audio>(doc.audio);
     double from = doc.hasSelection() ? (double) doc.selA : (double) doc.cursor, to = doc.hasSelection() ? (double) doc.selB : (double) doc.audio.frames();
     if (to - from < 2.0) { from = 0.0; to = (double) doc.audio.frames(); }
-    { const juce::SpinLock::ScopedLockType l(playLock); pubAudio = copy; }
+    playRange((size_t) from, (size_t) to, false);
+}
+
+void MeowProcessor::refreshTempo()
+{
+    if (tempoVer == ver.load()) return; tempoVer = ver.load(); tempoV = 0; hitsV.clear();
+    if (doc.audio.frames() < 4 || doc.audio.frames() > (size_t) (doc.audio.sr * 900.0)) return;   // very long sounds: no automatic tempo
+    hitsV = mc::detectTransients(doc.audio, 0.6); tempoV = mc::detectBpm(doc.audio);
+}
+double MeowProcessor::detectedBpm() { refreshTempo(); return tempoV; }
+const std::vector<size_t>& MeowProcessor::hits() { refreshTempo(); return hitsV; }
+
+mc::WarpOpts MeowProcessor::warpOpts(size_t a, size_t b)
+{
+    const double sb = sampleBpm(); mc::WarpOpts o; o.ratio = warp.sync && sb > 0 ? hostBpm.load() / sb : 1.0; o.mode = warp.mode; o.semis = warp.semis; o.cents = warp.cents; o.formant = warp.keepFormants; o.fshift = warp.fshift;
+    for (size_t h : hits()) if (h > a && h < b) o.hits.push_back(h - a);
+    return o;
+}
+
+void MeowProcessor::playRange(size_t a, size_t b, bool forceWarp)
+{
+    if (doc.audio.frames() < 2 || b <= a) return;
+    std::shared_ptr<const mc::Audio> pub; double from = (double) a, to = (double) b;
+    if (forceWarp || warpActive())
+    {
+        const auto o = warpOpts(a, b); const std::string key = std::to_string(ver.load()) + ":" + std::to_string(a) + ":" + std::to_string(b) + ":" + std::to_string(o.ratio) + ":" + std::to_string(o.mode) + ":" + std::to_string(o.semis) + ":" + std::to_string(o.cents) + ":" + std::to_string((int) o.formant) + ":" + std::to_string(o.fshift);
+        if (key != warpKey || !warpCache) { warpCache = std::make_shared<const mc::Audio>(mc::warpAudio(doc.audio.slice(a, b), o)); warpKey = key; }
+        pub = warpCache; from = 0.0; to = (double) pub->frames(); mapA = (double) a; mapRatio = o.ratio > 0 ? o.ratio : 1.0;
+    }
+    else { pub = std::make_shared<const mc::Audio>(doc.audio); mapA = 0.0; mapRatio = 1.0; }
+    if (pub->frames() < 2) return;
+    { const juce::SpinLock::ScopedLockType l(playLock); pubAudio = pub; }
     playFrom = from; playTo = to; playPos = from; pubFlag = true; playing = true;
+}
+
+bool MeowProcessor::bakeWarp(bool allOverride)
+{
+    if (!warpActive() && !(warp.keepFormants && warp.fshift != 0)) return false;
+    const bool all = allOverride || warp.all || !doc.hasSelection(); const size_t s = all ? 0 : doc.selA, e = all ? doc.audio.frames() : doc.selB; if (e <= s) return false;
+    stopPlay(); const auto o = warpOpts(s, e); const double st = warp.semis + warp.cents / 100.0; size_t outLen = 0;
+    std::string label = "Warp"; if (warp.sync) label += " to " + juce::String(hostBpm.load(), 1).toStdString() + " bpm"; if (st != 0) label += juce::String(st > 0 ? " +" : " ").toStdString() + juce::String(st, 2).toStdString() + " st";
+    doc.transform(label, [&](mc::Audio& a) { const auto w = mc::warpAudio(a.slice(s, e), o); outLen = w.frames(); a.splice(s, e, w); });
+    if (all) doc.setCursor(0); else doc.setSelection(s, s + outLen);
+    if (warp.sync) warp.bpm = 0; resetWarp(); warpCache.reset(); changed(); return true;
 }
 
 void MeowProcessor::newSound() { stopPlay(); doc.load(mc::Audio()); changed(); }

@@ -56,7 +56,18 @@ public:
     void play();                    // selection if any, else from the cursor to the end
     void stopPlay() { playing = false; }
     bool isPlaying() const { return playing.load(); }
-    double playPosFrames() const { return playPos.load(); }   // in frames of the sound
+    double playPosFrames() const { return mapA.load() + playPos.load() * mapRatio.load(); }   // in frames of the sound, also while a warped copy plays
+
+    // ---- warp: tempo and pitch of what plays, until Bake in writes it into the sound ----
+    struct WarpState { bool sync = false, keepFormants = true, all = false; int mode = 0; double bpm = 0, semis = 0, cents = 0, fshift = 0; } warp;   // mode: 0 Stretch, 1 Repitch, 2 Beats, 3 Texture
+    double detectedBpm();           // 0 when none found (cached per change)
+    const std::vector<size_t>& hits();   // transient positions in frames (cached per change)
+    double sampleBpm() { return warp.bpm > 0 ? warp.bpm : detectedBpm(); }
+    bool warpActive() { return (warp.sync && sampleBpm() > 0) || warp.semis != 0 || warp.cents != 0; }
+    mc::WarpOpts warpOpts(size_t a, size_t b);
+    void playRange(size_t a, size_t b, bool forceWarp);
+    bool bakeWarp(bool allOverride);   // writes the warp into the sound (one undo step) and resets the warp; false if there is nothing to bake
+    void resetWarp() { warp.sync = false; warp.semis = warp.cents = warp.fshift = 0; }
     double recordedSeconds() const;
 
     // levels, 0..1, written by the audio thread
@@ -79,6 +90,8 @@ private:
 
     // playback
     juce::SpinLock playLock; std::shared_ptr<const mc::Audio> pubAudio; std::shared_ptr<const mc::Audio> curAudio; std::atomic<bool> pubFlag { false };
+    std::atomic<double> mapA { 0.0 }, mapRatio { 1.0 };   // played frame to sound frame, for the playhead
+    int tempoVer = -1; double tempoV = 0; std::vector<size_t> hitsV; void refreshTempo(); std::string warpKey; std::shared_ptr<const mc::Audio> warpCache;
     std::atomic<bool> playing { false }; std::atomic<double> playPos { 0.0 }, playFrom { 0.0 }, playTo { 0.0 };
 
     // count-in click

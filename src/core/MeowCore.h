@@ -49,6 +49,12 @@ struct Audio
         Audio o; o.sr = sr; for (int c = 0; c < 2; ++c) o.ch[c].assign (ch[c].begin() + (std::ptrdiff_t) a, ch[c].begin() + (std::ptrdiff_t) b);
         return o;
     }
+    // Replaces frames a..b with w (any length).
+    void splice (size_t a, size_t b, const Audio& w)
+    {
+        b = std::min (b, frames()); a = std::min (a, b);
+        for (int c = 0; c < 2; ++c) { ch[c].erase (ch[c].begin() + (std::ptrdiff_t) a, ch[c].begin() + (std::ptrdiff_t) b); ch[c].insert (ch[c].begin() + (std::ptrdiff_t) a, w.ch[c].begin(), w.ch[c].end()); }
+    }
     float peak (size_t a, size_t b) const
     {
         float m = 0; b = std::min (b, frames());

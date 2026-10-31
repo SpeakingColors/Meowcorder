@@ -324,6 +324,21 @@ inline NoteResult detectNotes (const Audio& a)
     }
     close(); return res;
 }
+// Hits: where the energy jumps. sens 0..1 (more sensitive finds more). Positions in frames.
+inline std::vector<size_t> detectTransients (const Audio& a, double sens)
+{
+    std::vector<size_t> out; const int hop = 256; const long long F = (long long) a.frames() / hop; if (F < 4) return out; std::vector<double> e ((size_t) F);
+    for (long long f = 0; f < F; ++f) { double s = 0; for (int i = 0; i < hop; ++i) { const double x = 0.5 * ((double) a.ch[0][(size_t) (f * hop + i)] + (double) a.ch[1][(size_t) (f * hop + i)]); s += x * x; } e[(size_t) f] = std::sqrt (s / hop); }
+    const double ratio = 1.4 + 2.2 * (1 - std::max (0.0, std::min (1.0, sens))); const long long minGap = (long long) std::floor (0.08 * a.sr / hop) + 1; long long last = 0; bool any = false;
+    for (long long f = 2; f + 1 < F; ++f)
+    {
+        double avg = 0; const long long a0 = f > 24 ? f - 24 : 0; for (long long k = a0; k < f; ++k) avg += e[(size_t) k]; avg /= (double) (f - a0);
+        const bool onset = e[(size_t) f] > ratio * avg + 0.01 && e[(size_t) f] > e[(size_t) f - 1] && e[(size_t) f - 1] <= e[(size_t) f - 2] * 1.5 + 1e-4;
+        if (onset && (!any || f - last >= minGap)) { out.push_back ((size_t) (f * hop)); last = f; any = true; }
+    }
+    return out;
+}
+
 // Tempo from the hits: autocorrelation of the onset curve, 60 to 200 bpm, leaning towards the usual 90 to 160. Returns 0 when the sound is too short.
 inline double detectBpm (const Audio& a)
 {

@@ -53,7 +53,7 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          for what in 1 2 3; do
+          for what in 1 2 3 4; do
             MEOW_DEMO=$what MEOW_SNAPSHOT="$PWD/snap$what.png" timeout 60 xvfb-run -a -s "-screen 0 1600x1000x24" "build/Meowcorder_artefacts/Release/Standalone/Meowcorder" 2>&1 | tail -5 | tee -a ci.log
             ls -la snap$what.png 2>&1 | tee -a ci.log
           done
