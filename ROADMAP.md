@@ -5,7 +5,7 @@ Done (v0.1)
 
 Next
 1. Interactive mockup, Edison style: menu bar with shortcuts shown, record from the input with start options (now, on input, count-in with click), spectral view with tools (mouse, selector, scissors, cutter, eraser, copy, paste, amp). Done; the JavaScript engine matches the C++ core on all 24 operations. Spectral editing exists in JavaScript only (tools/spectral_test.js); the C++ port comes with the plugin.
-2. JUCE plugin and standalone: first build done (CI green on Linux and Windows, window seen via headless snapshot). Still to do: history list, spectral tools, pitch piano roll, warp, clickable channel / rate / bit depth info, test in Bitwig and Ableton, FLAC/OGG import check, installers, release. Record from the track or input and drag the result back into the host is in
+2. JUCE plugin and standalone: first build done (CI green on Linux and Windows, window seen via headless snapshot). Written and compiling, but not yet clicked through by a person: history list, spectral tools, pitch piano roll, layers, warp, waveform pencil, live strip, clickable channel / rate / bit depth chips. Still to do: test every function by hand, test in Bitwig and Ableton, FLAC/OGG import check, installers, release. Record from the track or input and drag the result back into the host is in
 3. Real file formats beyond WAV (FLAC, OGG) through the host or a small library
 4. Manual with interface tour, installers (Windows, macOS, Flatpak), release workflow
 5. Test in Bitwig and Ableton
