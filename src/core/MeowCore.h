@@ -540,6 +540,8 @@ public:
     }
     bool spectralCopy (const SpecRegion& r) { SpecClip c = mc::spectralCopy (audio, r); if (!c.valid()) return false; sclip = std::move (c); return true; }
     bool hasSpectralClip() const { return sclip.valid(); }
+    const SpecClip& spectralClip() const { return sclip; }
+    void cancelEdit() { if (!undoStack.empty()) undoStack.pop_back(); }   // drops the step beginEdit made when the stroke changed nothing
     bool spectralPaste (double atFrame, double destHz)
     {
         if (!sclip.valid() || audio.frames() == 0) return false; pushUndo ("Spectral paste"); mc::spectralPaste (audio, sclip, atFrame, destHz); return true;

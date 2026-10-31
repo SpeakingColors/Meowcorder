@@ -39,6 +39,7 @@ public:
     // ---- message thread only ----
     mc::Editor doc;                 // the sound, selection, undo
     int version() const { return ver.load(); }
+    double currentBpm() const { return hostBpm.load(); }
     void changed() { ++ver; }       // call after any change to doc
     bool loadFile(const juce::File&);
     bool saveFile(const juce::File&, bool flac);

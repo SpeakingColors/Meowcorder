@@ -109,6 +109,7 @@ struct Display : juce::Component, juce::SettableTooltipClient
 
     void mouseDown(const juce::MouseEvent& e) override
     {
+        if (spectral && tool != Mouse) { specDown(e); return; }
         if (frames() == 0) return; dragFrom = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
         if (e.mods.isShiftDown() && (p.doc.hasSelection() || p.doc.cursor > 0)) { const size_t a = p.doc.hasSelection() ? p.doc.selA : p.doc.cursor; p.doc.setSelection(a, dragFrom); }
         else p.doc.setCursor(dragFrom);
@@ -116,10 +117,14 @@ struct Display : juce::Component, juce::SettableTooltipClient
     }
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        if (sd.on) { specDrag(e); return; }
         if (frames() == 0) return; const size_t f = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
         if (e.getDistanceFromDragStart() > 2) p.doc.setSelection(dragFrom, f); if (onSelection) onSelection(); repaint();
     }
-    void mouseDoubleClick(const juce::MouseEvent&) override { if (frames() > 0) { p.doc.setSelection(0, frames()); if (onSelection) onSelection(); repaint(); } }
+    void mouseUp(const juce::MouseEvent& e) override { if (sd.on) specUp(e); }
+    void mouseMove(const juce::MouseEvent& e) override { if (spectral && tool == Paste && p.doc.hasSpectralClip()) { ghost = true; ghostP = e.position; repaint(); } }
+    void mouseExit(const juce::MouseEvent&) override { if (ghost) { ghost = false; repaint(); } }
+    void mouseDoubleClick(const juce::MouseEvent&) override { if (spectral && tool != Mouse) return; if (frames() > 0) { p.doc.setSelection(0, frames()); if (onSelection) onSelection(); repaint(); } }
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         if (frames() == 0) return;
@@ -152,6 +157,7 @@ struct Display : juce::Component, juce::SettableTooltipClient
                     const float mid = top + laneH * 0.5f, amp = laneH * 0.46f; g.fillRect((float) x, mid - mx * amp, 1.f, std::max(1.f, (mx - mn) * amp));
                 }
             }
+        if (spectral) paintSpecOverlay(g);
         if (p.doc.hasSelection()) { const float x0 = frameToX((double) p.doc.selA), x1 = frameToX((double) p.doc.selB); g.setColour(kBlue.withAlpha(0.16f)); g.fillRect(x0, 0.f, x1 - x0, (float) area.getHeight()); g.setColour(kBlue); g.drawVerticalLine((int) x0, 0.f, (float) area.getHeight()); g.drawVerticalLine((int) x1, 0.f, (float) area.getHeight()); }
         else { const float x = frameToX((double) p.doc.cursor); g.setColour(kBlue); g.drawVerticalLine((int) x, 0.f, (float) area.getHeight()); }
         if (p.isPlaying()) { const float x = frameToX(p.playPosFrames()); g.setColour(kGold); g.drawVerticalLine((int) x, 0.f, (float) area.getHeight()); }
@@ -173,7 +179,7 @@ struct Display : juce::Component, juce::SettableTooltipClient
             if (sp.frames > 0 && sp.bins > 0)
                 for (int y = 0; y < h; ++y)
                 {
-                    const float fr = 1.f - (float) y / (float) h; const int bin = juce::jlimit(0, sp.bins - 1, (int) (std::pow(fr, 2.2f) * (float) sp.bins));
+                    const int bin = juce::jlimit(0, sp.bins - 1, (int) std::lround(hzAtY((float) y) / nyq() * (double) (sp.bins - 1)));
                     for (int x = 0; x < w; ++x)
                     {
                         const int fi = juce::jlimit(0, sp.frames - 1, (int) ((double) x / w * sp.frames)); const float v = juce::jlimit(0.f, 1.f, (sp.at(fi, bin) + 90.f) / 80.f);
@@ -181,7 +187,100 @@ struct Display : juce::Component, juce::SettableTooltipClient
                     }
                 }
         }
-        g.drawImageAt(spec, 0, 0); g.setColour(kDim); g.setFont(mono(10.f)); g.drawText("Spectral view (read only for now)", 6, 4, 260, 12, juce::Justification::left);
+        g.drawImageAt(spec, 0, 0); g.setColour(kDim); g.setFont(mono(10.f)); for (double hz : { 100.0, 1000.0, 10000.0 }) if (hz < nyq()) { const float y = yAtHz(hz); g.setColour(Colour(0x33ffffff)); g.drawHorizontalLine((int) y, 0.f, (float) w); g.setColour(kDim); g.drawText(hz >= 1000 ? String((int) (hz / 1000)) + "k" : String((int) hz), 4, (int) y - 12, 40, 12, juce::Justification::left); }
+    }
+
+    // ---- spectral tools (the mockup's nine) ----
+    enum Tool { Mouse, Select, Scissors, Cutter, Eraser, Copy, Paste, Amp, Pencil };
+    int tool = Mouse, brush = 12; float ampDb = 6.f, penDb = -18.f; bool hasReg = false; mc::SpecRegion sreg;
+    std::function<void(const String&)> onHint; std::function<void()> onToolChanged;
+    struct Drag { bool on = false, did = false, moved = false; juce::Point<float> p0, p, last; std::vector<mc::SpecRegion> rects, pending; double f0 = 0, pf = 0, phz = 0, pph = 0, pn = 0; juce::uint32 lastFlush = 0; } sd;
+    bool ghost = false; juce::Point<float> ghostP;
+    static const char* toolHint(int t)
+    {
+        static const char* h[] = { "Click for the cursor, drag to select a time range.", "Drag a box over time and frequency. Use Cutter, Amp or Copy on the box from the Spectral menu.", "Drag across time: that slice is cut out and the gap closes.",
+            "Drag a box: the sound inside it is removed, the length stays.", "Paint over what should go. It is removed as you paint.", "Drag a box to copy that piece, then click with Paste where it should land.",
+            "Click where the copied piece should go. Left edge is time, height is frequency.", "Drag a box: it gets the level change set next to the tools.", "Draw a line on the picture: a pure tone follows your pen. Drag forward in time. Click for a short beep." };
+        return h[t];
+    }
+    void setTool(int t) { tool = t; ghost = false; if (onHint) onHint(toolHint(t)); if (onToolChanged) onToolChanged(); setMouseCursor(t == Mouse ? juce::MouseCursor::NormalCursor : juce::MouseCursor::CrosshairCursor); repaint(); }
+    int specH() const { return std::max(2, getHeight() - 22); }
+    double nyq() const { return std::max(100.0, p.doc.audio.sr * 0.5); }
+    double hzAtY(float y) const { const float h = (float) specH(); return 20.0 * std::pow(nyq() / 20.0, 1.0 - (double) juce::jlimit(0.f, h - 1.f, y) / (double) (h - 1.f)); }
+    float yAtHz(double hz) const { const double h = (double) specH(); return (float) ((1.0 - std::log(juce::jlimit(20.0, nyq(), hz) / 20.0) / std::log(nyq() / 20.0)) * (h - 1.0)); }
+    double frAtX(float x) const { return juce::jlimit(0.0, (double) frames(), xToFrame(x)); }
+    mc::SpecRegion boxOf(juce::Point<float> a, juce::Point<float> b) const { const double f0 = frAtX(a.x), f1 = frAtX(b.x), h0 = hzAtY(a.y), h1 = hzAtY(b.y); return { std::min(f0, f1), std::max(f0, f1), std::min(h0, h1), std::max(h0, h1) }; }
+    mc::SpecRegion brushRect(juce::Point<float> q) const { const double fpp = vLen / (double) std::max(1, getWidth()), c = xToFrame(q.x), r = (double) brush; return { c - r * fpp, c + r * fpp, hzAtY(q.y + (float) brush), hzAtY(q.y - (float) brush) }; }
+    double penAmp() const { return std::pow(10.0, (double) penDb / 20.0); }
+    double penFade() const { return std::round(0.003 * p.doc.audio.sr); }
+    void edited() { hasReg = false; p.changed(); if (onSelection) onSelection(); repaint(); }
+    void flushEraser(bool force)
+    {
+        const auto now = juce::Time::getMillisecondCounter(); if (sd.pending.empty() || (!force && now - sd.lastFlush < 70)) return;
+        mc::spectralEdit(p.doc.audio, sd.pending, true, 0.f); sd.pending.clear(); sd.did = true; sd.lastFlush = now; p.changed(); repaint();
+    }
+    void penBump(bool force) { const auto now = juce::Time::getMillisecondCounter(); if (force || now - sd.lastFlush > 70) { sd.lastFlush = now; p.changed(); repaint(); } }
+    void penTail() { if (sd.pn > 0) { mc::pencilTone(p.doc.audio, sd.pf, sd.pf + penFade(), sd.phz, sd.phz, penAmp(), sd.pph, 0, penFade()); sd.did = true; } }
+    void specDown(const juce::MouseEvent& e)
+    {
+        if (frames() == 0) return; sd = Drag(); sd.on = true; sd.p0 = sd.p = e.position; sd.f0 = frAtX(e.position.x);
+        if (tool == Eraser) { p.stopPlay(); p.doc.beginEdit("Spectral eraser"); const auto r = brushRect(e.position); sd.rects = { r }; sd.pending = { r }; flushEraser(true); }
+        if (tool == Pencil) { p.stopPlay(); p.doc.beginEdit("Pencil (spectral)"); sd.pf = frAtX(e.position.x); sd.phz = hzAtY(e.position.y); sd.pph = 0; sd.pn = 0; }
+        repaint();
+    }
+    void specDrag(const juce::MouseEvent& e)
+    {
+        sd.p = e.position;
+        if (tool == Eraser) { const auto l = sd.last == juce::Point<float>() ? sd.p0 : sd.last; if (l.getDistanceFrom(sd.p) >= (float) brush * 0.5f) { const auto r = brushRect(sd.p); sd.rects = { r }; sd.pending.push_back(r); sd.last = sd.p; flushEraser(false); } }
+        else if (tool == Pencil)
+        {
+            const double f = frAtX(sd.p.x), hz = hzAtY(sd.p.y), fpp = vLen / (double) std::max(1, getWidth());
+            if (f > sd.pf) { sd.pph = mc::pencilTone(p.doc.audio, sd.pf, f, sd.phz, hz, penAmp(), sd.pph, sd.pn > 0 ? 0 : std::min(penFade(), f - sd.pf), 0); sd.pn += f - sd.pf; sd.pf = f; sd.phz = hz; sd.did = true; penBump(false); }
+            else if (f < sd.pf - 3 * fpp) { penTail(); sd.pf = f; sd.phz = hz; sd.pn = 0; sd.pph = 0; penBump(false); }
+        }
+        repaint();
+    }
+    void specUp(const juce::MouseEvent& e)
+    {
+        const auto d = sd; sd.on = false; const auto q = e.position; const bool tiny = std::abs(q.x - d.p0.x) < 4 && std::abs(q.y - d.p0.y) < 4; const auto box = boxOf(d.p0, q);
+        switch (tool)
+        {
+            case Select: if (tiny) { hasReg = false; p.doc.setCursor((size_t) frAtX(q.x)); } else { sreg = box; hasReg = true; p.doc.setSelection((size_t) box.t0, (size_t) box.t1); } if (onSelection) onSelection(); break;
+            case Scissors: if (!tiny) { p.stopPlay(); p.doc.setSelection((size_t) box.t0, (size_t) box.t1); p.doc.deleteSelection(); edited(); } break;
+            case Cutter: if (!tiny) { p.stopPlay(); p.doc.spectralEdit(true, { box }, 0.f); edited(); } break;
+            case Amp: if (!tiny) { p.stopPlay(); p.doc.spectralEdit(false, { box }, ampDb); edited(); } break;
+            case Eraser: flushEraser(true); if (sd.did) edited(); else p.doc.cancelEdit(); break;
+            case Pencil:
+            {
+                const double sr = p.doc.audio.sr; if (sd.pn <= 0) { const double n = std::round(0.06 * sr); sd.pph = mc::pencilTone(p.doc.audio, sd.pf, sd.pf + n, sd.phz, sd.phz, penAmp(), 0, penFade(), penFade()); sd.did = true; } else penTail();
+                if (sd.did) edited(); else p.doc.cancelEdit(); break;
+            }
+            case Copy: if (!tiny && p.doc.spectralCopy(box)) { sreg = box; hasReg = true; setTool(Paste); if (onHint) onHint("Copied. Click where it should land."); } break;
+            case Paste: p.stopPlay(); if (p.doc.spectralPaste(frAtX(q.x), hzAtY(q.y))) edited(); else if (onHint) onHint("Nothing copied yet. Use Copy first."); break;
+            default: break;
+        }
+        repaint();
+    }
+    void drawBox(Graphics& g, const mc::SpecRegion& r, Colour col, Colour fill, const String& label)
+    {
+        const float x0 = frameToX(r.t0), x1 = frameToX(r.t1), y0 = yAtHz(r.f1), y1 = yAtHz(r.f0); g.setColour(fill); g.fillRect(x0, y0, x1 - x0, y1 - y0);
+        g.setColour(col); g.drawRect(x0, y0, x1 - x0, y1 - y0, 1.f); if (label.isNotEmpty()) { g.setFont(mono(10.f)); g.drawText(label, (int) x0 + 3, (int) y0 + 2, 160, 12, juce::Justification::left); }
+    }
+    static String fmtHz(double f) { return f >= 1000 ? String(f / 1000.0, f >= 10000 ? 1 : 2) + "k" : String((int) std::lround(f)); }
+    void paintSpecOverlay(Graphics& g)
+    {
+        if (hasReg) drawBox(g, sreg, kBlue, kBlue.withAlpha(0.13f), fmtHz(sreg.f0) + " to " + fmtHz(sreg.f1) + " Hz");
+        if (sd.on)
+        {
+            if (tool == Eraser) for (auto& r : sd.rects) drawBox(g, r, kPink, kPink.withAlpha(0.33f), {});
+            else if (tool == Select || tool == Scissors || tool == Cutter || tool == Copy || tool == Amp)
+            { auto b = boxOf(sd.p0, sd.p); if (tool == Scissors) { b.f0 = 20; b.f1 = nyq(); } drawBox(g, b, tool == Cutter || tool == Scissors ? kPink : (tool == Amp ? kGold : kBlue), Colour(0x1cffffff), {}); }
+        }
+        else if (tool == Paste && ghost && p.doc.hasSpectralClip())
+        {
+            const auto& c = p.doc.spectralClip(); const double dur = (double) (c.nf - 1) * mc::kSH + mc::kSN / 2.0, half = ((double) c.nb * c.sr / mc::kSN) / 2.0, hz = hzAtY(ghostP.y), fr = frAtX(ghostP.x);
+            drawBox(g, { fr, fr + dur, std::max(20.0, hz - half), hz + half }, kTeal, kTeal.withAlpha(0.13f), "paste here");
+        }
     }
     size_t dragFrom = 0;
 };
@@ -317,7 +416,8 @@ struct MeowEditor::Impl
     Impl(MeowEditor& o, MeowProcessor& pr) : owner(o), p(pr), gate(o), display(pr), overview(pr, display), inM("IN"), outM("OUT"), drag(pr, &o)
     {
         o.setLookAndFeel(&laf); o.addAndMakeVisible(content); auto& c = content;
-        for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp, &guide, &about, &startNow, &startIn, &startCount, &takeB, &viewW, &viewS, &chCh, &chSr, &chBit, &chUnit }) c.addAndMakeVisible(*b);
+        for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp, &guide, &about, &startNow, &startIn, &startCount, &takeB, &viewW, &viewS, &chCh, &chSr, &chBit, &chUnit, &mSpectral }) c.addAndMakeVisible(*b);
+        buildSpecTools();
         for (auto* b : { &loop, &play, &stop, &rec, &monitor }) c.addAndMakeVisible(*b); c.addAndMakeVisible(recOpt);
         c.addAndMakeVisible(display); c.addAndMakeVisible(overview); c.addAndMakeVisible(inM); c.addAndMakeVisible(outM); c.addAndMakeVisible(drag);
         for (auto* l : { &readout, &timeL, &recHintL, &opHint }) c.addAndMakeVisible(*l);
@@ -343,7 +443,7 @@ struct MeowEditor::Impl
             if (tp != nullptr) for (int i = 0; i < tp->choices.size(); ++i) m.addItem(tp->choices[i], true, i == cur, [tp, i] { *tp = i; }); m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&takeB)); };
         guide.setTooltip("Open the manual."); about.setTooltip("Free and open source. Opens the Ko-fi page.");
         mFile.onClick = [this] { menu(mFile, fileMenu()); }; mEdit.onClick = [this] { menu(mEdit, editMenu()); }; mSelect.onClick = [this] { menu(mSelect, selectMenu()); }; mView.onClick = [this] { menu(mView, viewMenu()); };
-        mPlay.onClick = [this] { menu(mPlay, playMenu()); }; mRecord.onClick = [this] { menu(mRecord, recordMenu()); }; mProcess.onClick = [this] { menu(mProcess, processMenu()); }; mHelp.onClick = [this] { menu(mHelp, helpMenu()); };
+        mPlay.onClick = [this] { menu(mPlay, playMenu()); }; mRecord.onClick = [this] { menu(mRecord, recordMenu()); }; mProcess.onClick = [this] { menu(mProcess, processMenu()); }; mSpectral.onClick = [this] { menu(mSpectral, spectralMenu()); }; mHelp.onClick = [this] { menu(mHelp, helpMenu()); };
         rec.onClick = [this] { toggleRecord(); }; stop.onClick = [this] { doStop(); }; play.onClick = [this] { doPlay(); }; recOpt.onClick = [this] { menu(recOpt, recordMenu()); };
         guide.onClick = [] { openManual(); }; about.onClick = [] { openAbout(); };
         rec.tint = kRed; play.tint = kGold; loop.tint = kGold; monitor.tint = kTeal; stop.tint = kText;
@@ -356,6 +456,48 @@ struct MeowEditor::Impl
         if (const char* f = std::getenv("MEOW_DEMO")) demo(String(f).getIntValue());   // documentation tool for screenshots, never set for users
     }
     ~Impl() { owner.setLookAndFeel(nullptr); }
+
+    // ---- spectral tools bar ----
+    void buildSpecTools()
+    {
+        auto& c = content; const char* ic[] = { "mouse", "select", "cut", "cutter", "eraser", "copy", "paste", "amp", "pencil" };
+        const char* nm[] = { "Mouse", "Selector", "Scissors", "Cutter", "Eraser", "Copy", "Paste", "Amp", "Pencil" };
+        for (int i = 0; i < 9; ++i)
+        {
+            auto* b = sTools.add(new IconButton(ic[i])); b->setTooltip(String(nm[i]) + " (Shift+" + String(i + 1) + "). " + display.toolHint(i)); b->onClick = [this, i] { display.setTool(i); }; c.addChildComponent(b);
+        }
+        int id = 1; for (int v : { -24, -12, -6, -3, 3, 6, 12 }) ampCb.addItem("Amp " + String(v > 0 ? "+" : "") + String(v) + " dB", id++);
+        id = 1; for (int v : { -36, -24, -18, -12, -6 }) penCb.addItem("Pen " + String(v) + " dB", id++);
+        brushCb.addItem("Brush small", 1); brushCb.addItem("Brush medium", 2); brushCb.addItem("Brush large", 3);
+        ampCb.setSelectedId(6, juce::dontSendNotification); penCb.setSelectedId(3, juce::dontSendNotification); brushCb.setSelectedId(2, juce::dontSendNotification);
+        ampCb.setTooltip("Level change the Amp tool applies to the box."); penCb.setTooltip("Level of the tone the Pencil draws."); brushCb.setTooltip("Size of the Eraser brush.");
+        const int ampV[] = { -24, -12, -6, -3, 3, 6, 12 }, penV[] = { -36, -24, -18, -12, -6 }, brV[] = { 6, 12, 24 };
+        ampCb.onChange = [this, ampV] { display.ampDb = (float) ampV[ampCb.getSelectedId() - 1]; }; penCb.onChange = [this, penV] { display.penDb = (float) penV[penCb.getSelectedId() - 1]; }; brushCb.onChange = [this, brV] { display.brush = brV[brushCb.getSelectedId() - 1]; };
+        for (auto* cb : { &ampCb, &penCb, &brushCb }) c.addChildComponent(*cb);
+        toolHintL.setFont(sans(12.f)); toolHintL.setColour(juce::Label::textColourId, kDim); toolHintL.setMinimumHorizontalScale(1.f); toolHintL.setJustificationType(juce::Justification::topLeft); c.addChildComponent(toolHintL);
+        display.onHint = [this](const String& t) { toolHintL.setText(t, juce::dontSendNotification); };
+        display.onToolChanged = [this] { for (int i = 0; i < sTools.size(); ++i) sTools[i]->setToggleState(i == display.tool, juce::dontSendNotification); };
+        display.setTool(Display::Mouse);
+    }
+    void showSpecTools(bool on) { for (auto* b : sTools) b->setVisible(on); for (auto* cb : { &ampCb, &penCb, &brushCb }) cb->setVisible(on); toolHintL.setVisible(on); }
+    juce::PopupMenu spectralMenu()
+    {
+        juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0, reg = display.hasReg, clip = p.doc.hasSpectralClip();
+        m.addItem("Show the spectral view", true, display.spectral, [this] { setSpectral(!display.spectral); }); m.addSeparator();
+        const char* nm[] = { "Mouse", "Selector", "Scissors", "Cutter", "Eraser", "Copy", "Paste", "Amp", "Pencil" }; juce::PopupMenu t;
+        for (int i = 0; i < 9; ++i) { juce::PopupMenu::Item it(nm[i]); it.setTicked(display.tool == i); it.shortcutKeyDescription = "Shift+" + String(i + 1); it.setAction([this, i] { setSpectral(true); display.setTool(i); }); t.addItem(std::move(it)); }
+        m.addSubMenu("Tool", t);
+        juce::PopupMenu am; { int k = 1; for (int v : { -24, -12, -6, -3, 3, 6, 12 }) { const int kk = k++; am.addItem(String(v > 0 ? "+" : "") + String(v) + " dB", true, (int) display.ampDb == v, [this, kk] { ampCb.setSelectedId(kk); }); } } m.addSubMenu("Amp amount", am);
+        juce::PopupMenu br; { const char* bn[] = { "Small", "Medium", "Large" }; const int bv[] = { 6, 12, 24 }; for (int i = 0; i < 3; ++i) br.addItem(bn[i], true, display.brush == bv[i], [this, i] { brushCb.setSelectedId(i + 1); }); } m.addSubMenu("Eraser brush", br);
+        m.addSeparator();
+        auto done = [this] { display.edited(); };
+        m.addItem("Cut the box", has && reg, false, [this, done] { p.stopPlay(); p.doc.spectralEdit(true, { display.sreg }, 0.f); done(); });
+        m.addItem("Amp the box", has && reg, false, [this, done] { p.stopPlay(); p.doc.spectralEdit(false, { display.sreg }, display.ampDb); done(); });
+        m.addItem("Copy the box", has && reg, false, [this] { p.doc.spectralCopy(display.sreg); });
+        m.addItem("Paste at the cursor", has && clip, false, [this, done] { p.stopPlay(); p.doc.spectralPaste((double) p.doc.cursor, p.doc.spectralClip().fc); done(); });
+        m.addItem("Clear the box", reg, false, [this] { display.hasReg = false; display.repaint(); });
+        return m;
+    }
 
     // ---- tool bar and process grid ----
     struct ToolSpec { IconButton* b; bool gapBefore; std::function<bool()> enabled; };
@@ -409,7 +551,7 @@ struct MeowEditor::Impl
     }
 
     // ---- actions ----
-    void setSpectral(bool s) { display.spectral = s; viewS.setToggleState(s, juce::dontSendNotification); viewW.setToggleState(!s, juce::dontSendNotification); display.repaint(); }
+    void setSpectral(bool s) { display.spectral = s; showSpecTools(s); viewS.setToggleState(s, juce::dontSendNotification); viewW.setToggleState(!s, juce::dontSendNotification); display.repaint(); }
     static void openManual() { juce::URL("https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf").launchInDefaultBrowser(); }
     static void openAbout() { juce::URL("https://ko-fi.com/studio87").launchInDefaultBrowser(); }
     void doStop() { if (p.isRecording()) p.stopRecord(); p.stopPlay(); }
@@ -482,7 +624,7 @@ struct MeowEditor::Impl
     {
         juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0; const double cur = p.doc.audio.sr;
         for (double r : { 8000.0, 11025.0, 16000.0, 22050.0, 32000.0, 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0 })
-            m.addItem(String(r / 1000.0, 3).trimCharactersAtEnd("0").trimCharactersAtEnd(".") + " kHz", has, std::abs(cur - r) < 0.5, [this, r] { p.stopPlay(); p.doc.transform("Convert to " + String(r, 0) + " Hz", [r](mc::Audio& a) { a = mc::resample(a, r); }); p.doc.setCursor(0); p.changed(); });
+            m.addItem(String(r / 1000.0, 3).trimCharactersAtEnd("0").trimCharactersAtEnd(".") + " kHz", has, std::abs(cur - r) < 0.5, [this, r] { p.stopPlay(); p.doc.transform(("Convert to " + String(r, 0) + " Hz").toStdString(), [r](mc::Audio& a) { a = mc::resample(a, r); }); p.doc.setCursor(0); p.changed(); });
         m.addSeparator(); m.addItem("Converting changes the sound itself; it keeps its length in seconds.", false, false, [] {}); return m;
     }
     juce::PopupMenu bitMenu()
@@ -490,7 +632,7 @@ struct MeowEditor::Impl
         juce::PopupMenu m; const bool has = p.doc.audio.frames() > 0; const int cur = p.exportBits.load();
         for (int b : { 8, 16, 24, 32 }) m.addItem(String(b) + (b == 32 ? " bit float (WAV only)" : " bit") + " export", true, cur == b, [this, b] { p.exportBits = b; refreshInfo(); repaintChips(); });
         m.addSeparator(); m.addItem("Dither when exporting below 24 bit", true, p.exportDither.load(), [this] { p.exportDither = !p.exportDither.load(); });
-        m.addItem("Round the sound itself to " + String(std::min(cur, 24)) + " bit now", has && cur < 24, false, [this, cur] { p.stopPlay(); const bool d = p.exportDither.load(); p.doc.transform("Round to " + String(cur) + " bit", [cur, d](mc::Audio& a) { mc::quantize(a, cur, d); }); p.changed(); }); return m;
+        m.addItem("Round the sound itself to " + String(std::min(cur, 24)) + " bit now", has && cur < 24, false, [this, cur] { p.stopPlay(); const bool d = p.exportDither.load(); p.doc.transform(("Round to " + String(cur) + " bit").toStdString(), [cur, d](mc::Audio& a) { mc::quantize(a, cur, d); }); p.changed(); }); return m;
     }
     juce::PopupMenu unitMenu()
     {
@@ -546,6 +688,7 @@ struct MeowEditor::Impl
     {
         const auto m = k.getModifiers(); const int c = k.getKeyCode(); const bool ctrl = m.isCommandDown() || m.isCtrlDown();
         if (!ctrl && m.isShiftDown() && c < 128 && std::isalpha(c)) { const int up = std::toupper(c); for (int i = 0; i < mc::opCount; ++i) if (keyFor(mc::kOps[i].id) == up) { applyOpNow(i); return true; } }
+        if (!ctrl && m.isShiftDown() && display.spectral) { const juce::juce_wchar tc = k.getTextCharacter(); int d = -1; if (c >= '1' && c <= '9') d = c - '1'; else { const char* sh = "!@#$%^&*("; for (int i = 0; i < 9; ++i) if (tc == (juce::juce_wchar) sh[i]) d = i; } if (d >= 0) { display.setTool(d); return true; } }
         if (c == juce::KeyPress::spaceKey) { doPlay(); return true; } if (c == juce::KeyPress::escapeKey) { doStop(); return true; }
         if (!ctrl && !m.isShiftDown() && (c == 'R' || c == 'r')) { toggleRecord(); return true; }
         if (ctrl && (c == 'Z' || c == 'z')) { if (m.isShiftDown()) { p.doc.repeatLast(); p.changed(); } else doUndo(); return true; }
@@ -563,7 +706,7 @@ struct MeowEditor::Impl
     {
         const auto& a = p.doc.audio; const int bits = p.exportBits.load(); const char* un[] = { "min:sec", "seconds", "samples", "bars:beats" };
         chCh.setButtonText(mc::isMonoAudio(a) && a.frames() > 0 ? "Mono" : "Stereo"); chSr.setButtonText(String(a.sr / 1000.0, 1) + " kHz"); chBit.setButtonText(bits == 32 ? "32 bit float" : String(bits) + " bit"); chUnit.setButtonText(un[gUnit]);
-        gUnitSr = a.sr > 0 ? a.sr : 44100.0; gUnitBpm = p.hostBpm.load();
+        gUnitSr = a.sr > 0 ? a.sr : 44100.0; gUnitBpm = p.currentBpm();
     }
     void refreshInfo()
     {
@@ -596,17 +739,18 @@ struct MeowEditor::Impl
             const float s = (float) (std::sin(2.0 * 3.14159265 * f * ph) * env * 0.8 + rng.bi() * std::exp(-ph * 40.0) * 0.3); a.ch[0][i] = s; a.ch[1][i] = s * 0.92f; }
         p.doc.load(a); p.doc.setSelection((size_t) (a.sr * 0.7), (size_t) (a.sr * 2.1)); p.changed(); display.fitAll();
         if (what == 1) { display.vStart = (double) n * 0.15; display.vLen = (double) n * 0.55; display.clampView(); }
-        if (what == 2) setSpectral(true);
+        if (what == 2) { setSpectral(true); display.setTool(Display::Select); display.sreg = { n * 0.2, n * 0.5, 80.0, 900.0 }; display.hasReg = true; }
         if (what == 3 && !opBtns.isEmpty()) juce::Timer::callAfterDelay(800, [this] { openOp(opOrder[0], opBtns[0]); });
         if (const char* out = std::getenv("MEOW_SNAPSHOT")) juce::Timer::callAfterDelay(2500, [this, path = String(out)] {
             auto img = owner.createComponentSnapshot(owner.getLocalBounds(), true, 1.5f); juce::File f(path); f.deleteFile(); juce::FileOutputStream os(f); if (os.openedOk()) juce::PNGImageFormat().writeImageToStream(img, os);
             juce::MessageManager::getInstance()->stopDispatchLoop(); });
     }
 
+    static float textW(const String& t) { juce::GlyphArrangement ga; ga.addLineOfText(sans(13.f, true), t, 0.f, 0.f); return ga.getBoundingBox(0, -1, true).getWidth(); }
     float scale() const { return (float) owner.getWidth() / (float) kBaseW; }
     void layout()
     {
-        int x = 14; for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mHelp }) { b->setBounds(x, 92, 72, 28); x += 76; }
+        int x = 14; for (auto* b : { &mFile, &mEdit, &mSelect, &mView, &mPlay, &mRecord, &mProcess, &mSpectral, &mHelp }) { const int w = juce::roundToInt(textW(b->getButtonText().toUpperCase())) + 22; b->setBounds(x, 92, w, 28); x += w + 4; }
         guide.setBounds(900, 20, 90, 34); about.setBounds(1000, 20, 130, 34);
         loop.setBounds(14, 126, 36, 34); play.setBounds(54, 126, 36, 34); stop.setBounds(94, 126, 36, 34); rec.setBounds(134, 126, 36, 34); recOpt.setBounds(172, 126, 18, 34);
         startNow.setBounds(204, 129, 66, 28); startIn.setBounds(274, 129, 92, 28); startCount.setBounds(370, 129, 86, 28); takeB.setBounds(464, 129, 110, 28);
@@ -616,7 +760,8 @@ struct MeowEditor::Impl
         opHint.setBounds(640, 158, 384, 60);
         x = 14; for (auto& sp : specs) { if (sp.gapBefore) x += 10; sp.b->setBounds(x, 244, 30, 30); x += 33; }
         monitor.setBounds(x + 10, 244, 30, 30);
-        readout.setBounds(14, 282, 1010, 20); chCh.setBounds(14, 308, 78, 20); chSr.setBounds(96, 308, 96, 20); chBit.setBounds(196, 308, 128, 20); chUnit.setBounds(328, 308, 110, 20); viewW.setBounds(62, 332, 96, 26); viewS.setBounds(162, 332, 96, 26);
+        readout.setBounds(14, 282, 1010, 20); chCh.setBounds(14, 308, 78, 20); chSr.setBounds(96, 308, 96, 20); chBit.setBounds(196, 308, 128, 20); chUnit.setBounds(328, 308, 110, 20); toolHintL.setBounds(450, 306, 574, 22);
+        { int tx = 270; for (auto* b : sTools) { b->setBounds(tx, 330, 30, 30); tx += 33; } ampCb.setBounds(tx + 6, 332, 112, 26); penCb.setBounds(tx + 124, 332, 112, 26); brushCb.setBounds(tx + 242, 332, 130, 26); } viewW.setBounds(62, 332, 96, 26); viewS.setBounds(162, 332, 96, 26);
         display.setBounds(14, 364, 1010, 340); overview.setBounds(14, 708, 1010, 36);
         inM.setBounds(1036, 92, 52, 652); outM.setBounds(1088, 92, 52, 652); drag.setBounds(940, 756, 186, 30);
     }
@@ -635,6 +780,8 @@ struct MeowEditor::Impl
     struct Content : juce::Component { Impl& i; explicit Content(Impl& x) : i(x) {} void paint(Graphics& g) override { i.paintContent(g); } } content { *this };
     MeowEditor& owner; MeowProcessor& p; catui::CatLookAndFeel laf; juce::ComponentBoundsConstrainer constrainer; catui::RenderGate gate;
     Pill mFile { "File", kTeal }, mEdit { "Edit", kTeal }, mSelect { "Select", kTeal }, mView { "View", kTeal }, mPlay { "Play", kTeal }, mRecord { "Record", kTeal }, mProcess { "Process", kTeal }, mHelp { "Help", kTeal }, guide { "Guide" }, about { "About & Support" };
+    juce::OwnedArray<IconButton> sTools; juce::ComboBox ampCb, penCb, brushCb; juce::Label toolHintL;
+    Pill mSpectral { "Spectral", kTeal };
     Pill chCh { "Stereo", kTeal }, chSr { "44.1 kHz", kTeal }, chBit { "24 bit", kTeal }, chUnit { "min:sec", kTeal };
     Pill startNow { "Now", kPink }, startIn { "On input", kPink }, startCount { "Count-in", kPink }, takeB { "Replace", kGold }, viewW { "Waveform" }, viewS { "Spectral" };
     IconButton loop { "loop" }, play { "play" }, stop { "stop" }, rec { "rec" }, monitor { "spk" }; Pill recOpt { juce::String::fromUTF8("\xe2\x96\xbe"), kRed };
