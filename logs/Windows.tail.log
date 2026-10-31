@@ -22,11 +22,11 @@ CMake Warning at build/_deps/juce-src/extras/Build/CMake/JUCEUtils.cmake:1769 (m
 Call Stack (most recent call first):
   build/_deps/juce-src/extras/Build/CMake/JUCEUtils.cmake:2165 (_juce_set_fallback_properties)
   build/_deps/juce-src/extras/Build/CMake/JUCEUtils.cmake:2248 (_juce_initialise_target)
-  CMakeLists.txt:25 (juce_add_plugin)
+  CMakeLists.txt:28 (juce_add_plugin)
 
 
--- Configuring done (122.3s)
--- Generating done (0.2s)
+-- Configuring done (101.1s)
+-- Generating done (0.1s)
 CMake Warning (unused-cli):
   Manually-specified variables were not used by the project:
 
@@ -45,14 +45,14 @@ C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231
   (compiling source file '../tests/test_core.cpp')
       C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1227,17):
       the template instantiation context (the oldest one first) is
-          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(321,93):
+          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,93):
           see reference to function template instantiation 'std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>> std::vector<_Ty,std::allocator<_Ty>>::insert<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,0>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,_Iter)' being compiled
           with
           [
               _Ty=float,
               _Iter=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>
           ]
-              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(321,100):
+              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,100):
               see the first reference to 'std::vector<float,std::allocator<float>>::insert' in 'mc::applyOp'
           C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1285,13):
           see reference to function template instantiation 'void std::vector<float,std::allocator<float>>::_Insert_counted_range<float*>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,const unsigned __int64)' being compiled
@@ -63,242 +63,47 @@ C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231
           ]
   
   test_core.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_core.exe
-Test project D:/a/Meowcorder/Meowcorder/build
-    Start 1: core
-1/1 Test #1: core .............................   Passed    0.15 sec
-
-100% tests passed out of 1
-
-Total Test time (real) =   0.19 sec
 MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
 
   Checking File Globs
-  Generating Meowcorder_artefacts/JuceLibraryCode/Meowcorder_resources.rc
   Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-  Building VST3 manifest helper for Meowcorder
-  Meowcorder_rc_lib.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_rc_lib.dir\Release\Meowcorder_rc_lib.lib
-  -- The CXX compiler identification is MSVC 19.51.36260.0
-  -- Detecting CXX compiler ABI info
-  -- Detecting CXX compiler ABI info - done
-  -- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
-  -- Detecting CXX compile features
-  -- Detecting CXX compile features - done
-  -- Configuring done (1.9s)
-  -- Generating done (0.0s)
-  -- Build files have been written to: D:/a/Meowcorder/Meowcorder/build/vst3_helpers/Meowcorder
-  MSBuild version 18.11.1-1.26513.3+940033be3 for .NET Framework
+cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\test_dsp.vcxproj]
+  test_dsp.cpp
+C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1227,17): warning C4530: C++ exception handler used, but unwind semantics are not enabled. Specify /EHsc [D:\a\Meowcorder\Meowcorder\build\test_dsp.vcxproj]
+  (compiling source file '../tests/test_dsp.cpp')
+      C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1227,17):
+      the template instantiation context (the oldest one first) is
+          D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,93):
+          see reference to function template instantiation 'std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>> std::vector<_Ty,std::allocator<_Ty>>::insert<std::_Vector_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,0>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,_Iter)' being compiled
+          with
+          [
+              _Ty=float,
+              _Iter=std::_Vector_iterator<std::_Vector_val<std::_Simple_types<float>>>
+          ]
+              D:\a\Meowcorder\Meowcorder\src\core\MeowCore.h(323,100):
+              see the first reference to 'std::vector<float,std::allocator<float>>::insert' in 'mc::applyOp'
+          C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC\14.51.36231\include\vector(1285,13):
+          see reference to function template instantiation 'void std::vector<float,std::allocator<float>>::_Insert_counted_range<float*>(std::_Vector_const_iterator<std::_Vector_val<std::_Simple_types<_Ty>>>,_Iter,const unsigned __int64)' being compiled
+          with
+          [
+              _Ty=float,
+              _Iter=float *
+          ]
   
-    1>Checking Build System
-    Building Custom Rule D:/a/Meowcorder/Meowcorder/build/_deps/juce-src/extras/Build/CMake/juce_vst3_helper/CMakeLists.txt
-    juce_VST3ManifestHelper.cpp
-    vst3_helper.vcxproj -> D:\a\Meowcorder\Meowcorder\build\vst3_helpers\Meowcorder\vst3_helper.exe
-    Building Custom Rule D:/a/Meowcorder/Meowcorder/build/_deps/juce-src/extras/Build/CMake/juce_vst3_helper/CMakeLists.txt
-  Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-  Building Custom Rule D:/a/Meowcorder/Meowcorder/build/_deps/cat_ui-src/CMakeLists.txt
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-  CatLookAndFeel.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-  CatFrame.cpp
-  juce_gui_basics.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-  juce_gui_basics_2.cpp
-  juce_gui_basics_3.cpp
-  juce_gui_basics_4.cpp
-  juce_gui_basics_5.cpp
-  juce_graphics.cpp
-  juce_graphics_Harfbuzz.cpp
-  juce_events.cpp
-  juce_core.cpp
-  juce_core_CompilationTime.cpp
-  juce_data_structures.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\cat_ui.vcxproj]
-  juce_graphics_Sheenbidi.c
-  cat_ui.vcxproj -> D:\a\Meowcorder\Meowcorder\build\_deps\cat_ui-build\Release\cat_ui.lib
-  Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-  MeowProcessor.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-  MeowEditor.cpp
-  juce_audio_processors.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-  juce_gui_extra.cpp
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowProcessor.cpp(161,53): warning C4996: 'juce::AudioFormat::createWriterFor': Use the function taking an AudioFormatWriterOptions instead. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(349,34): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-D:\a\Meowcorder\Meowcorder\src\plugin\MeowEditor.cpp(548,36): warning C4996: 'getenv': This function or variable may be unsafe. Consider using _dupenv_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-  juce_gui_basics.cpp
-  juce_gui_basics_2.cpp
-  juce_gui_basics_3.cpp
-  juce_gui_basics_4.cpp
-D:\a\Meowcorder\Meowcorder\build\_deps\juce-src\modules\juce_gui_basics\juce_gui_basics.cpp(61): warning : This version of JUCE does not use the splash screen, the flag JUCE_DISPLAY_SPLASH_SCREEN is ignored [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-  juce_gui_basics_5.cpp
-  juce_graphics.cpp
-  juce_graphics_Harfbuzz.cpp
-  juce_events.cpp
-  juce_core.cpp
-  juce_core_CompilationTime.cpp
-  juce_data_structures.cpp
-  juce_audio_processors_headless.cpp
-  juce_audio_processors_headless_ara.cpp
-  juce_audio_processors_headless_lv2_libs.cpp
-  juce_audio_basics.cpp
-  juce_audio_utils.cpp
-  juce_audio_formats.cpp
-  juce_audio_devices.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder.vcxproj]
-  juce_graphics_Sheenbidi.c
-  Meowcorder.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\Meowcorder_SharedCode.lib
-  Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-  juce_audio_plugin_client_AAX.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-  juce_audio_plugin_client_AAX_utils.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-  juce_audio_plugin_client_ARA.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_VST3.vcxproj]
-  juce_audio_plugin_client_LV2.cpp
-  juce_audio_plugin_client_Standalone.cpp
-  juce_audio_plugin_client_Unity.cpp
-  juce_audio_plugin_client_VST2.cpp
-  juce_audio_plugin_client_VST3.cpp
-     Creating library D:/a/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.lib and object D:/a/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.exp
-  Meowcorder_VST3.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3\Contents\x86_64-win\Meowcorder.vst3
-  removing moduleinfo.json
-  creating D:/a/Meowcorder/Meowcorder/build/Meowcorder_artefacts/Release/VST3/Meowcorder.vst3/Contents/Resources/moduleinfo.json
-  test_core.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_core.exe
-  Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
-  juce_audio_plugin_client_AAX.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
-  juce_audio_plugin_client_AAX_utils.cpp
-  juce_audio_plugin_client_ARA.cpp
-cl : command line  warning D9002: ignoring unknown option '-g1' [D:\a\Meowcorder\Meowcorder\build\Meowcorder_Standalone.vcxproj]
-  juce_audio_plugin_client_LV2.cpp
-  juce_audio_plugin_client_Standalone.cpp
-  juce_audio_plugin_client_Unity.cpp
-  juce_audio_plugin_client_VST2.cpp
-  juce_audio_plugin_client_VST3.cpp
-  Meowcorder_Standalone.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\Standalone\Meowcorder.exe
-  Building Custom Rule D:/a/Meowcorder/Meowcorder/CMakeLists.txt
-Started validating: D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3
-Random seed: 0x53aabc6
-Validation started
-Strictness level: 5
------------------------------------------------------------------
-Starting tests in: pluginval / Scan for plugins located in: D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3...
-Num plugins found: 1
+  test_dsp.vcxproj -> D:\a\Meowcorder\Meowcorder\build\Release\test_dsp.exe
+Test project D:/a/Meowcorder/Meowcorder/build
+    Start 1: core
+1/2 Test #1: core .............................***Failed    0.12 sec
+FAIL line 45: err < (bits == 8 ? 1e-2 : bits == 16 ? 1e-4 : (bits == 24 ? 1e-6 : 1e-9))
+622 checks, 1 failed
 
-Testing plugin: VST3-Meowcorder-bf0c13b0-b66864ea
-Studio 87: Meowcorder v0.1.0
-Completed tests in pluginval / Scan for plugins located in: D:\a\Meowcorder\Meowcorder\build\Meowcorder_artefacts\Release\VST3\Meowcorder.vst3
------------------------------------------------------------------
-Starting tests in: pluginval / Open plugin (cold)...
-Completed tests in pluginval / Open plugin (cold)
------------------------------------------------------------------
-Starting tests in: pluginval / Open plugin (warm)...
-Running tests 1 times
-Completed tests in pluginval / Open plugin (warm)
------------------------------------------------------------------
-Starting tests in: pluginval / Plugin info...
+    Start 2: dsp
+2/2 Test #2: dsp ..............................   Passed    0.46 sec
 
-Plugin name: Meowcorder
-Alternative names: Meowcorder
-SupportsDoublePrecision: no
-Reported latency: 0
-Reported taillength: 0
-Completed tests in pluginval / Plugin info
------------------------------------------------------------------
-Starting tests in: pluginval / Plugin programs...
-Num programs: 0
-All program names checked
-Completed tests in pluginval / Plugin programs
------------------------------------------------------------------
-Starting tests in: pluginval / Editor...
-Completed tests in pluginval / Editor
------------------------------------------------------------------
-Starting tests in: pluginval / Open editor whilst processing...
-Completed tests in pluginval / Open editor whilst processing
------------------------------------------------------------------
-Starting tests in: pluginval / Audio processing...
-Testing with sample rate [44100] and block size [64]
-Testing with sample rate [44100] and block size [128]
-Testing with sample rate [44100] and block size [256]
-Testing with sample rate [44100] and block size [512]
-Testing with sample rate [44100] and block size [1024]
-Testing with sample rate [48000] and block size [64]
-Testing with sample rate [48000] and block size [128]
-Testing with sample rate [48000] and block size [256]
-Testing with sample rate [48000] and block size [512]
-Testing with sample rate [48000] and block size [1024]
-Testing with sample rate [96000] and block size [64]
-Testing with sample rate [96000] and block size [128]
-Testing with sample rate [96000] and block size [256]
-Testing with sample rate [96000] and block size [512]
-Testing with sample rate [96000] and block size [1024]
-Completed tests in pluginval / Audio processing
------------------------------------------------------------------
-Starting tests in: pluginval / Plugin state...
-Completed tests in pluginval / Plugin state
------------------------------------------------------------------
-Starting tests in: pluginval / Automation...
-Testing with sample rate [44100] and block size [64] and sub-block size [32]
-Testing with sample rate [44100] and block size [128] and sub-block size [32]
-Testing with sample rate [44100] and block size [256] and sub-block size [32]
-Testing with sample rate [44100] and block size [512] and sub-block size [32]
-Testing with sample rate [44100] and block size [1024] and sub-block size [32]
-Testing with sample rate [48000] and block size [64] and sub-block size [32]
-Testing with sample rate [48000] and block size [128] and sub-block size [32]
-Testing with sample rate [48000] and block size [256] and sub-block size [32]
-Testing with sample rate [48000] and block size [512] and sub-block size [32]
-Testing with sample rate [48000] and block size [1024] and sub-block size [32]
-Testing with sample rate [96000] and block size [64] and sub-block size [32]
-Testing with sample rate [96000] and block size [128] and sub-block size [32]
-Testing with sample rate [96000] and block size [256] and sub-block size [32]
-Testing with sample rate [96000] and block size [512] and sub-block size [32]
-Testing with sample rate [96000] and block size [1024] and sub-block size [32]
-Completed tests in pluginval / Automation
------------------------------------------------------------------
-Starting tests in: pluginval / Editor Automation...
-Completed tests in pluginval / Editor Automation
------------------------------------------------------------------
-Starting tests in: pluginval / Automatable Parameters...
-Completed tests in pluginval / Automatable Parameters
------------------------------------------------------------------
-Starting tests in: pluginval / auval...
-Completed tests in pluginval / auval
------------------------------------------------------------------
-Starting tests in: pluginval / vst3 validator...
-INFO: Skipping vst3 validator as validator path hasn't been set
-Completed tests in pluginval / vst3 validator
------------------------------------------------------------------
-Starting tests in: pluginval / Basic bus...
-Completed tests in pluginval / Basic bus
------------------------------------------------------------------
-Starting tests in: pluginval / Listing available buses...
-Inputs:
-	Named layouts: Mono, Stereo
-	Discrete layouts: Discrete #1
-Outputs:
-	Named layouts: Stereo
-	Discrete layouts: None
-Main bus num input channels: 2
-Main bus num output channels: 2
-Completed tests in pluginval / Listing available buses
------------------------------------------------------------------
-Starting tests in: pluginval / Enabling all buses...
-Completed tests in pluginval / Enabling all buses
------------------------------------------------------------------
-Starting tests in: pluginval / Disabling non-main busses...
-Completed tests in pluginval / Disabling non-main busses
------------------------------------------------------------------
-Starting tests in: pluginval / Restoring default layout...
-Main bus num input channels: 2
-Main bus num output channels: 2
-Completed tests in pluginval / Restoring default layout
-SUCCESS
+50% tests passed, 1 tests failed out of 2
+
+Total Test time (real) =   0.62 sec
+
+The following tests FAILED:
+	  1 - core (Failed)
+Errors while running CTest
