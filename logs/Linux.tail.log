@@ -1,25 +1,3 @@
--- The C compiler identification is GNU 15.2.0
--- The CXX compiler identification is GNU 15.2.0
--- Detecting C compiler ABI info
--- Detecting C compiler ABI info - done
--- Check for working C compiler: /usr/bin/cc - skipped
--- Detecting C compile features
--- Detecting C compile features - done
--- Detecting CXX compiler ABI info
--- Detecting CXX compiler ABI info - done
--- Check for working CXX compiler: /usr/bin/c++ - skipped
--- Detecting CXX compile features
--- Detecting CXX compile features - done
--- Found PkgConfig: /usr/bin/pkg-config (found version "2.5.1")
--- Checking for module 'alsa'
---   Found alsa, version 1.2.15.3
--- Checking for modules 'freetype2;fontconfig'
---   Found freetype2, version 26.5.20
---   Found fontconfig, version 2.17.1
--- Checking for module 'gl'
---   Found gl, version 1.2
--- Checking for module 'libcurl'
---   Package 'libcurl' not found
 -- Checking for modules 'webkit2gtk-4.0;gtk+-x11-3.0'
 --   Package 'webkit2gtk-4.0' not found
 --   Package 'gtk+-x11-3.0' not found
@@ -37,7 +15,7 @@ Call Stack (most recent call first):
   CMakeLists.txt:28 (juce_add_plugin)
 
 
--- Configuring done (80.4s)
+-- Configuring done (65.3s)
 -- Generating done (0.0s)
 -- Build files have been written to: /home/runner/work/Meowcorder/Meowcorder/build
 [ 50%] Building CXX object CMakeFiles/test_core.dir/tests/test_core.cpp.o
@@ -48,17 +26,375 @@ Call Stack (most recent call first):
 [100%] Built target test_dsp
 Test project /home/runner/work/Meowcorder/Meowcorder/build
     Start 1: core
-1/2 Test #1: core .............................***Failed    0.10 sec
-FAIL line 45: err < (bits == 8 ? 1e-2 : bits == 16 ? 1e-4 : (bits == 24 ? 1e-6 : 1e-9))
-622 checks, 1 failed
-
+1/2 Test #1: core .............................   Passed    0.07 sec
     Start 2: dsp
-2/2 Test #2: dsp ..............................   Passed    0.46 sec
+2/2 Test #2: dsp ..............................   Passed    0.40 sec
 
-50% tests passed, 1 tests failed out of 2
+100% tests passed out of 2
 
-Total Test time (real) =   0.85 sec
-
-The following tests FAILED:
-	  1 - core (Failed)
-Errors while running CTest
+Total Test time (real) =   0.52 sec
+[  1%] Building VST3 manifest helper for Meowcorder
+[  3%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/src/CatLookAndFeel.cpp.o
+[  6%] Built target test_core
+[  9%] Built target test_dsp
+[ 11%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/src/CatFrame.cpp.o
+[ 12%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_gui_basics/juce_gui_basics.cpp.o
+-- The CXX compiler identification is GNU 15.2.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/runner/work/Meowcorder/Meowcorder/build/vst3_helpers/Meowcorder
+[ 50%] Building CXX object CMakeFiles/vst3_helper.dir/home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-src/modules/juce_audio_plugin_client/VST3/juce_VST3ManifestHelper.cpp.o
+[100%] Linking CXX executable vst3_helper
+[100%] Built target vst3_helper
+[ 12%] Built target Meowcorder_vst3_helper
+[ 14%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_gui_basics/juce_gui_basics_2.cpp.o
+[ 16%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_gui_basics/juce_gui_basics_3.cpp.o
+[ 17%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_gui_basics/juce_gui_basics_4.cpp.o
+[ 19%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_gui_basics/juce_gui_basics_5.cpp.o
+[ 20%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_graphics/juce_graphics.cpp.o
+[ 22%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_graphics/juce_graphics_Harfbuzz.cpp.o
+[ 24%] Building C object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_graphics/juce_graphics_Sheenbidi.c.o
+[ 25%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_events/juce_events.cpp.o
+[ 27%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_core/juce_core.cpp.o
+[ 29%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_core/juce_core_CompilationTime.cpp.o
+[ 30%] Building CXX object _deps/cat_ui-build/CMakeFiles/cat_ui.dir/__/juce-src/modules/juce_data_structures/juce_data_structures.cpp.o
+[ 32%] Linking CXX static library libcat_ui.a
+[ 32%] Built target cat_ui
+[ 33%] Building CXX object CMakeFiles/Meowcorder.dir/src/plugin/MeowProcessor.cpp.o
+[ 35%] Building CXX object CMakeFiles/Meowcorder.dir/src/plugin/MeowEditor.cpp.o
+[ 38%] Building CXX object CMakeFiles/Meowcorder.dir/_deps/juce-src/modules/juce_audio_processors/juce_audio_processors.cpp.o
+[ 38%] Building CXX object CMakeFiles/Meowcorder.dir/_deps/juce-src/modules/juce_gui_extra/juce_gui_extra.cpp.o
+In file included from /home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:491,
+                 from /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.h:8,
+                 from /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.h:5,
+                 from /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:1:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:81:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   81 |         if (ch == 0) any = maskBins (regions, c, a.sr, m); if (!any) return;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:81:60: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   81 |         if (ch == 0) any = maskBins (regions, c, a.sr, m); if (!any) return;
+      |                                                            ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘bool mc::spectralPaste(Audio&, const SpecClip&, double, double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:118:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  118 |     if (!clip.valid() || a.frames() == 0) return false; const double sr = a.sr; const long long jt = rnd ((atFrame - kSN / 2.0) / kSH), dk = rnd ((destHz - clip.fc) * kSN / sr);
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:118:57: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  118 |     if (!clip.valid() || a.frames() == 0) return false; const double sr = a.sr; const long long jt = rnd ((atFrame - kSN / 2.0) / kSH), dk = rnd ((destHz - clip.fc) * kSN / sr);
+      |                                                         ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘double mc::sincw(double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:134:43: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  134 | inline double sincw (double x) { return x == 0 ? 1.0 : std::sin (kPiD * x) / (kPiD * x); }
+      |                                         ~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘bool mc::isMonoAudio(const Audio&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:149:99: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  149 | inline bool isMonoAudio (const Audio& a) { for (size_t i = 0; i < a.frames(); ++i) if (a.ch[0][i] != a.ch[1][i]) return false; return true; }
+In file included from /home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:491,
+                 from /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.h:8,
+                 from /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp:1:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:81:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   81 |         if (ch == 0) any = maskBins (regions, c, a.sr, m); if (!any) return;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:81:60: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   81 |         if (ch == 0) any = maskBins (regions, c, a.sr, m); if (!any) return;
+      |                                                            ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘std::vector<float, std::allocator<float> > mc::formantCorrect(const std::vector<float, std::allocator<float> >&, const std::vector<float, std::allocator<float> >&, double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:207:300: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  207 |         for (long long i = 0; i < N; ++i) { const long long p = st + i; const double w = W[(size_t) i], a = p >= 0 && p < n ? (double) x[(size_t) p] : 0.0, b = p >= 0 && p < n ? (double) y[(size_t) p] : 0.0; r1[(size_t) i] = a * w; r2[(size_t) i] = b * w; i1[(size_t) i] = i2[(size_t) i] = 0; if (b != 0) any = true; }
+      |                                                                                                                                                                                                                                                                                                          ~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:208:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  208 |         if (!any) continue; fftRI (r1.data(), i1.data(), (int) N); fftRI (r2.data(), i2.data(), (int) N);
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:208:29: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  208 |         if (!any) continue; fftRI (r1.data(), i1.data(), (int) N); fftRI (r2.data(), i2.data(), (int) N);
+      |                             ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘bool mc::spectralPaste(Audio&, const SpecClip&, double, double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:118:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  118 |     if (!clip.valid() || a.frames() == 0) return false; const double sr = a.sr; const long long jt = rnd ((atFrame - kSN / 2.0) / kSH), dk = rnd ((destHz - clip.fc) * kSN / sr);
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:118:57: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  118 |     if (!clip.valid() || a.frames() == 0) return false; const double sr = a.sr; const long long jt = rnd ((atFrame - kSN / 2.0) / kSH), dk = rnd ((destHz - clip.fc) * kSN / sr);
+      |                                                         ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘double mc::sincw(double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:134:43: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  134 | inline double sincw (double x) { return x == 0 ? 1.0 : std::sin (kPiD * x) / (kPiD * x); }
+      |                                         ~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘bool mc::isMonoAudio(const Audio&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:149:99: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  149 | inline bool isMonoAudio (const Audio& a) { for (size_t i = 0; i < a.frames(); ++i) if (a.ch[0][i] != a.ch[1][i]) return false; return true; }
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘mc::Audio mc::warpAudio(const Audio&, const WarpOpts&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:278:24: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  278 |     Audio r = (o.ratio != 0 && std::fabs (o.ratio - 1) > 1e-6) ? perChannel (a, [&] (const std::vector<float>& x, int) { return warpCh (x, o.ratio, o.mode, a.sr, o.hits); }) : a;
+      |                ~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:280:44: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  280 |     if (std::fabs (st) > 1e-4 || (o.fshift != 0 && o.formant)) r = pitchShift (r, st, o.formant, o.fshift);
+      |                                   ~~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘mc::PitchTrack mc::detectPitch(const Audio&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:300:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  300 |         if (best < 0) continue; double tau = best;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:300:33: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  300 |         if (best < 0) continue; double tau = best;
+      |                                 ^~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘std::vector<float, std::allocator<float> > mc::formantCorrect(const std::vector<float, std::allocator<float> >&, const std::vector<float, std::allocator<float> >&, double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:207:300: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  207 |         for (long long i = 0; i < N; ++i) { const long long p = st + i; const double w = W[(size_t) i], a = p >= 0 && p < n ? (double) x[(size_t) p] : 0.0, b = p >= 0 && p < n ? (double) y[(size_t) p] : 0.0; r1[(size_t) i] = a * w; r2[(size_t) i] = b * w; i1[(size_t) i] = i2[(size_t) i] = 0; if (b != 0) any = true; }
+      |                                                                                                                                                                                                                                                                                                          ~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:208:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  208 |         if (!any) continue; fftRI (r1.data(), i1.data(), (int) N); fftRI (r2.data(), i2.data(), (int) N);
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:208:29: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  208 |         if (!any) continue; fftRI (r1.data(), i1.data(), (int) N); fftRI (r2.data(), i2.data(), (int) N);
+      |                             ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘double mc::detectBpm(const Audio&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:338:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  338 |     if (best < 0 || bv <= 0) return 0; double lag = (double) best; const double a0 = ac[(size_t) best - 1], b0 = ac[(size_t) best], c0 = ac[(size_t) best + 1], den = a0 - 2 * b0 + c0; if (std::fabs (den) > 1e-20) lag += 0.5 * (a0 - c0) / den;
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:338:40: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  338 |     if (best < 0 || bv <= 0) return 0; double lag = (double) best; const double a0 = ac[(size_t) best - 1], b0 = ac[(size_t) best], c0 = ac[(size_t) best + 1], den = a0 - 2 * b0 + c0; if (std::fabs (den) > 1e-20) lag += 0.5 * (a0 - c0) / den;
+      |                                        ^~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘mc::Audio mc::warpAudio(const Audio&, const WarpOpts&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:278:24: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  278 |     Audio r = (o.ratio != 0 && std::fabs (o.ratio - 1) > 1e-6) ? perChannel (a, [&] (const std::vector<float>& x, int) { return warpCh (x, o.ratio, o.mode, a.sr, o.hits); }) : a;
+      |                ~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘void mc::pencilWave(Audio&, double, double, double, double, int)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:381:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  381 |     if (a.frames() == 0) return; if (f1 < f0) { std::swap (f0, f1); std::swap (v0, v1); }
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:381:34: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  381 |     if (a.frames() == 0) return; if (f1 < f0) { std::swap (f0, f1); std::swap (v0, v1); }
+      |                                  ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:386:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  386 |         if (lane != 1) a.ch[0][(size_t) f] = v; if (lane != 0) a.ch[1][(size_t) f] = v;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:386:49: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  386 |         if (lane != 1) a.ch[0][(size_t) f] = v; if (lane != 0) a.ch[1][(size_t) f] = v;
+      |                                                 ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:280:44: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  280 |     if (std::fabs (st) > 1e-4 || (o.fshift != 0 && o.formant)) r = pitchShift (r, st, o.formant, o.fshift);
+      |                                   ~~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘mc::PitchTrack mc::detectPitch(const Audio&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:300:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  300 |         if (best < 0) continue; double tau = best;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:300:33: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  300 |         if (best < 0) continue; double tau = best;
+      |                                 ^~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘double mc::detectBpm(const Audio&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:338:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  338 |     if (best < 0 || bv <= 0) return 0; double lag = (double) best; const double a0 = ac[(size_t) best - 1], b0 = ac[(size_t) best], c0 = ac[(size_t) best + 1], den = a0 - 2 * b0 + c0; if (std::fabs (den) > 1e-20) lag += 0.5 * (a0 - c0) / den;
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:338:40: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  338 |     if (best < 0 || bv <= 0) return 0; double lag = (double) best; const double a0 = ac[(size_t) best - 1], b0 = ac[(size_t) best], c0 = ac[(size_t) best + 1], den = a0 - 2 * b0 + c0; if (std::fabs (den) > 1e-20) lag += 0.5 * (a0 - c0) / den;
+      |                                        ^~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h: In function ‘void mc::pencilWave(Audio&, double, double, double, double, int)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:381:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  381 |     if (a.frames() == 0) return; if (f1 < f0) { std::swap (f0, f1); std::swap (v0, v1); }
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:381:34: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  381 |     if (a.frames() == 0) return; if (f1 < f0) { std::swap (f0, f1); std::swap (v0, v1); }
+      |                                  ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:386:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  386 |         if (lane != 1) a.ch[0][(size_t) f] = v; if (lane != 0) a.ch[1][(size_t) f] = v;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowDsp.h:386:49: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  386 |         if (lane != 1) a.ch[0][(size_t) f] = v; if (lane != 0) a.ch[1][(size_t) f] = v;
+      |                                                 ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h: In member function ‘bool mc::Editor::transform(const std::string&, const std::function<void(mc::Audio&)>&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:533:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  533 |         if (audio.frames() == 0) return false; pushUndo (label.c_str()); const double sr = audio.sr; fn (audio); audio.sr = sr > 0 && audio.sr <= 0 ? sr : audio.sr;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:533:48: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  533 |         if (audio.frames() == 0) return false; pushUndo (label.c_str()); const double sr = audio.sr; fn (audio); audio.sr = sr > 0 && audio.sr <= 0 ? sr : audio.sr;
+      |                                                ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h: In member function ‘bool mc::Editor::spectralEdit(bool, const std::vector<mc::SpecRegion>&, float)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:539:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  539 |         if (audio.frames() == 0 || regions.empty()) return false; pushUndo (cut ? "Spectral cut" : "Spectral amp"); mc::spectralEdit (audio, regions, cut, gainDb); return true;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:539:67: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  539 |         if (audio.frames() == 0 || regions.empty()) return false; pushUndo (cut ? "Spectral cut" : "Spectral amp"); mc::spectralEdit (audio, regions, cut, gainDb); return true;
+      |                                                                   ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h: In member function ‘bool mc::Editor::spectralPaste(double, double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:545:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  545 |         if (!sclip.valid() || audio.frames() == 0) return false; pushUndo ("Spectral paste"); mc::spectralPaste (audio, sclip, atFrame, destHz); return true;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:545:66: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  545 |         if (!sclip.valid() || audio.frames() == 0) return false; pushUndo ("Spectral paste"); mc::spectralPaste (audio, sclip, atFrame, destHz); return true;
+      |                                                                  ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h: In member function ‘bool mc::Editor::transform(const std::string&, const std::function<void(mc::Audio&)>&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:533:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  533 |         if (audio.frames() == 0) return false; pushUndo (label.c_str()); const double sr = audio.sr; fn (audio); audio.sr = sr > 0 && audio.sr <= 0 ? sr : audio.sr;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:533:48: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  533 |         if (audio.frames() == 0) return false; pushUndo (label.c_str()); const double sr = audio.sr; fn (audio); audio.sr = sr > 0 && audio.sr <= 0 ? sr : audio.sr;
+      |                                                ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h: In member function ‘bool mc::Editor::spectralEdit(bool, const std::vector<mc::SpecRegion>&, float)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:539:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  539 |         if (audio.frames() == 0 || regions.empty()) return false; pushUndo (cut ? "Spectral cut" : "Spectral amp"); mc::spectralEdit (audio, regions, cut, gainDb); return true;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:539:67: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  539 |         if (audio.frames() == 0 || regions.empty()) return false; pushUndo (cut ? "Spectral cut" : "Spectral amp"); mc::spectralEdit (audio, regions, cut, gainDb); return true;
+      |                                                                   ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h: In member function ‘bool mc::Editor::spectralPaste(double, double)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:545:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  545 |         if (!sclip.valid() || audio.frames() == 0) return false; pushUndo ("Spectral paste"); mc::spectralPaste (audio, sclip, atFrame, destHz); return true;
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:545:66: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  545 |         if (!sclip.valid() || audio.frames() == 0) return false; pushUndo ("Spectral paste"); mc::spectralPaste (audio, sclip, atFrame, destHz); return true;
+      |                                                                  ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘juce::Drawable* {anonymous}::IconButton::get(juce::Colour)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:67:13: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+   67 |             if (part.isEmpty()) continue; const String tag = part.upToFirstOccurrenceOf(" ", false, false);
+      |             ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:67:43: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   67 |             if (part.isEmpty()) continue; const String tag = part.upToFirstOccurrenceOf(" ", false, false);
+      |                                           ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Display::mouseDown(const juce::MouseEvent&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:112:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  112 |         if (frames() == 0) return; dragFrom = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:112:36: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  112 |         if (frames() == 0) return; dragFrom = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
+      |                                    ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:115:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  115 |         if (onSelection) onSelection(); repaint();
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:115:41: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  115 |         if (onSelection) onSelection(); repaint();
+      |                                         ^~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Display::mouseDrag(const juce::MouseEvent&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:119:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  119 |         if (frames() == 0) return; const size_t f = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:119:36: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  119 |         if (frames() == 0) return; const size_t f = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
+      |                                    ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:120:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  120 |         if (e.getDistanceFromDragStart() > 2) p.doc.setSelection(dragFrom, f); if (onSelection) onSelection(); repaint();
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:120:80: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  120 |         if (e.getDistanceFromDragStart() > 2) p.doc.setSelection(dragFrom, f); if (onSelection) onSelection(); repaint();
+      |                                                                                ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Display::mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:127:105: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  127 |         if (e.mods.isShiftDown() || std::abs(w.deltaX) > std::abs(w.deltaY)) { const float d = w.deltaX != 0 && !e.mods.isShiftDown() ? w.deltaX : (w.deltaY != 0 ? w.deltaY : w.deltaX); vStart -= d * vLen * 0.5; clampView(); repaint(); }
+      |                                                                                                ~~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:127:158: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  127 |         if (e.mods.isShiftDown() || std::abs(w.deltaX) > std::abs(w.deltaY)) { const float d = w.deltaX != 0 && !e.mods.isShiftDown() ? w.deltaX : (w.deltaY != 0 ? w.deltaY : w.deltaX); vStart -= d * vLen * 0.5; clampView(); repaint(); }
+      |                                                                                                                                                     ~~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘void {anonymous}::Overview::tick()’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:208:32: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  208 |     void tick() { if (d.vStart != lastS || d.vLen != lastL) { lastS = d.vStart; lastL = d.vLen; repaint(); } }
+      |                       ~~~~~~~~~^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:208:51: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  208 |     void tick() { if (d.vStart != lastS || d.vLen != lastL) { lastS = d.vStart; lastL = d.vLen; repaint(); } }
+      |                                            ~~~~~~~^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Overview::mouseDown(const juce::MouseEvent&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:227:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  227 |         if (frames() == 0) return; mode = hit((float) e.x);
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:227:36: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  227 |         if (frames() == 0) return; mode = hit((float) e.x);
+      |                                    ^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void {anonymous}::Overview::mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:245:102: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+  245 |         if (std::abs(w.deltaX) > std::abs(w.deltaY) || e.mods.isShiftDown()) { d.vStart -= (w.deltaX != 0 ? w.deltaX : w.deltaY) * d.vLen * 0.5; d.clampView(); d.repaint(); repaint(); }
+      |                                                                                             ~~~~~~~~~^~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp: In member function ‘virtual void MeowProcessor::prepareToPlay(double, int)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp:40:14: warning: comparing floating-point with ‘==’ or ‘!=’ is unsafe [-Wfloat-equal]
+   40 |     if (rate != sr) { sr = rate; recorder.prepare(sr, 30.0); }
+      |         ~~~~~^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp: In member function ‘bool MeowProcessor::saveFile(const juce::File&, bool)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.cpp:166:94: warning: ‘juce::AudioFormatWriter* juce::AudioFormat::createWriterFor(juce::OutputStream*, double, unsigned int, int, const juce::StringPairArray&, int)’ is deprecated: Use the function taking an AudioFormatWriterOptions instead. [-Wdeprecated-declarations]
+  166 |     juce::FlacAudioFormat fmt; std::unique_ptr<juce::AudioFormatWriter> w(fmt.createWriterFor(os.get(), a.sr, 2, bits, {}, 0)); if (!w) return false;
+      |                                                                           ~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-src/modules/juce_audio_formats/juce_audio_formats.h:127,
+                 from /home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-src/modules/juce_audio_utils/juce_audio_utils.h:68,
+                 from /home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.h:5:
+/home/runner/work/Meowcorder/Meowcorder/build/_deps/juce-src/modules/juce_audio_formats/format/juce_AudioFormat.h:179:24: note: declared here
+  179 |     AudioFormatWriter* createWriterFor (OutputStream* streamToWriteTo,
+      |                        ^~~~~~~~~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In constructor ‘MeowEditor::Impl::Impl(MeowEditor&, MeowProcessor&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:321:9: warning: this ‘for’ clause does not guard... [-Wmisleading-indentation]
+  321 |         for (auto* b : { &loop, &play, &stop, &rec, &monitor }) c.addAndMakeVisible(*b); c.addAndMakeVisible(recOpt);
+      |         ^~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:321:90: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘for’
+  321 |         for (auto* b : { &loop, &play, &stop, &rec, &monitor }) c.addAndMakeVisible(*b); c.addAndMakeVisible(recOpt);
+      |                                                                                          ^
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:327:70: warning: declaration of ‘tip’ shadows a member of ‘MeowEditor::Impl’ [-Wshadow]
+  327 |         auto knob = [&](juce::Slider& s, const char* id, const char* tip, const String& suffix) { s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 66, 14); s.setTooltip(tip); s.setTextValueSuffix(suffix);
+      |                                                          ~~~~~~~~~~~~^~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:644:125: note: shadowed declaration is here
+  644 |     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> loopA, monA; std::unique_ptr<juce::TooltipWindow> tip; std::unique_ptr<juce::FileChooser> chooser;
+      |                                                                                                                             ^~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:343:13: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  343 |             if (tp != nullptr) for (int i = 0; i < tp->choices.size(); ++i) m.addItem(tp->choices[i], true, i == cur, [tp, i] { *tp = i; }); m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&takeB)); };
+      |             ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:343:142: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  343 |             if (tp != nullptr) for (int i = 0; i < tp->choices.size(); ++i) m.addItem(tp->choices[i], true, i == cur, [tp, i] { *tp = i; }); m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&takeB)); };
+      |                                                                                                                                              ^
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In static member function ‘static juce::Colour MeowEditor::Impl::groupColour(const juce::String&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:388:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  388 |         if (g == "Edit") return Colour(0xff6cc9f5); if (g == "Stereo") return Colour(0xffa43dff); if (g == "Time") return Colour(0xffff9000); if (g == "Colour") return Colour(0xffffd100); if (g == "Tone") return Colour(0xffff1383);
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:388:53: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  388 |         if (g == "Edit") return Colour(0xff6cc9f5); if (g == "Stereo") return Colour(0xffa43dff); if (g == "Time") return Colour(0xffff9000); if (g == "Colour") return Colour(0xffffd100); if (g == "Tone") return Colour(0xffff1383);
+      |                                                     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘void MeowEditor::Impl::openOp(int, juce::Component*)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:439:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  439 |         if (p.doc.audio.frames() == 0) return; closeBox();
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:439:48: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  439 |         if (p.doc.audio.frames() == 0) return; closeBox();
+      |                                                ^~~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘void MeowEditor::Impl::applyOpNow(int)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:445:9: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  445 |         if (p.doc.audio.frames() == 0) return; float v[mc::kMaxOpParams]; mc::defaultParams(op, v); if (p.doc.last.op == op) for (int i = 0; i < mc::kMaxOpParams; ++i) v[i] = p.doc.last.p[i];
+      |         ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:445:48: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  445 |         if (p.doc.audio.frames() == 0) return; float v[mc::kMaxOpParams]; mc::defaultParams(op, v); if (p.doc.last.op == op) for (int i = 0; i < mc::kMaxOpParams; ++i) v[i] = p.doc.last.p[i];
+      |                                                ^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:485:206: error: cannot convert ‘juce::String’ to ‘const std::string&’ {aka ‘const std::__cxx11::basic_string<char>&’}
+  485 |             m.addItem(String(r / 1000.0, 3).trimCharactersAtEnd("0").trimCharactersAtEnd(".") + " kHz", has, std::abs(cur - r) < 0.5, [this, r] { p.stopPlay(); p.doc.transform("Convert to " + String(r, 0) + " Hz", [r](mc::Audio& a) { a = mc::resample(a, r); }); p.doc.setCursor(0); p.changed(); });
+      |                                                                                                                                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+      |                                                                                                                                                                                                              |
+      |                                                                                                                                                                                                              juce::String
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:531:40: note: initializing argument 1 of ‘bool mc::Editor::transform(const std::string&, const std::function<void(mc::Audio&)>&)’
+  531 |     bool transform (const std::string& label, const std::function<void (Audio&)>& fn)
+      |                     ~~~~~~~~~~~~~~~~~~~^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In lambda function:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:493:222: error: cannot convert ‘juce::String’ to ‘const std::string&’ {aka ‘const std::__cxx11::basic_string<char>&’}
+  493 |         m.addItem("Round the sound itself to " + String(std::min(cur, 24)) + " bit now", has && cur < 24, false, [this, cur] { p.stopPlay(); const bool d = p.exportDither.load(); p.doc.transform("Round to " + String(cur) + " bit", [cur, d](mc::Audio& a) { mc::quantize(a, cur, d); }); p.changed(); }); return m;
+      |                                                                                                                                                                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+      |                                                                                                                                                                                                                              |
+      |                                                                                                                                                                                                                              juce::String
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/../core/MeowCore.h:531:40: note: initializing argument 1 of ‘bool mc::Editor::transform(const std::string&, const std::function<void(mc::Audio&)>&)’
+  531 |     bool transform (const std::string& label, const std::function<void (Audio&)>& fn)
+      |                     ~~~~~~~~~~~~~~~~~~~^~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘void MeowEditor::Impl::updateChips()’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:566:59: error: ‘std::atomic<double> MeowProcessor::hostBpm’ is private within this context
+  566 |         gUnitSr = a.sr > 0 ? a.sr : 44100.0; gUnitBpm = p.hostBpm.load();
+      |                                                           ^~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowProcessor.h:85:25: note: declared private here
+   85 |     std::atomic<double> hostBpm { 120.0 }; int clickLeft = 0; float clickPhase = 0.f, clickFreq = 1000.f;
+      |                         ^~~~~~~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp: In member function ‘virtual void MeowEditor::mouseDoubleClick(const juce::MouseEvent&)’:
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:660:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+  660 |     if (!impl) return; const auto p = e.getEventRelativeTo(this).getPosition(); if (p.x < kCheek * impl->scale() || p.x > getWidth() - kCheek * impl->scale()) setSize(kBaseW, kBaseH);
+      |     ^~
+/home/runner/work/Meowcorder/Meowcorder/src/plugin/MeowEditor.cpp:660:24: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+  660 |     if (!impl) return; const auto p = e.getEventRelativeTo(this).getPosition(); if (p.x < kCheek * impl->scale() || p.x > getWidth() - kCheek * impl->scale()) setSize(kBaseW, kBaseH);
+      |                        ^~~~~
+gmake[2]: *** [CMakeFiles/Meowcorder.dir/build.make:93: CMakeFiles/Meowcorder.dir/src/plugin/MeowEditor.cpp.o] Error 1
+gmake[2]: *** Waiting for unfinished jobs....
+gmake[1]: *** [CMakeFiles/Makefile2:271: CMakeFiles/Meowcorder.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2
