@@ -8,6 +8,9 @@ enable_testing()
 add_executable(test_core tests/test_core.cpp)
 target_include_directories(test_core PRIVATE src)
 add_test(NAME core COMMAND test_core)
+add_executable(test_dsp tests/test_dsp.cpp)
+target_include_directories(test_dsp PRIVATE src)
+add_test(NAME dsp COMMAND test_dsp)
 
 # The plugin and the standalone app. Pass -DMC_JUCE_DIR=/path/to/JUCE to use a local JUCE, otherwise JUCE is fetched.
 option(MC_BUILD_JUCE "Build the VST3 plugin and the standalone app" ON)
