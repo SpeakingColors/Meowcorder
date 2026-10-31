@@ -634,6 +634,21 @@ public:
         for (size_t i = 0; i < want; ++i) { const size_t k = (w + cap - want + i) % cap; o.ch[0][i] = ring[0][k]; o.ch[1][i] = ring[1][k]; }
         return o;
     }
+    // Peaks of the last `seconds`, in `cols` columns, oldest first. Columns that lie before anything was heard are marked in `valid`.
+    void peaks (double seconds, int cols, float* mn, float* mx, bool* valid) const
+    {
+        const size_t total = std::max<size_t> (1, (size_t) std::llround (seconds * sr)); const size_t C = (size_t) std::max (1, cols);
+        for (size_t x = 0; x < C; ++x)
+        {
+            const size_t i0 = x * total / C, i1 = std::max (i0 + 1, (x + 1) * total / C); mn[x] = mx[x] = 0.f; valid[x] = false;
+            const size_t step = std::max<size_t> (1, (i1 - i0) / 48);
+            for (size_t i = i0; i < i1; i += step)
+            {
+                if (i + filled < total) continue;   // older than what the ring holds
+                const size_t k = (w + cap - total + i) % cap; const float v = 0.5f * (ring[0][k] + ring[1][k]); mn[x] = std::min (mn[x], v); mx[x] = std::max (mx[x], v); valid[x] = true;
+            }
+        }
+    }
     size_t maxFrames = (size_t) 48000 * 60 * 20; // 20 minutes at 48 kHz, then it stops adding
 private:
     double sr = 48000; size_t cap = 1, w = 0, filled = 0, preRoll = 0; std::vector<float> ring[2]; Audio rec; bool recording = false; Mode mode = Off; float thr = 0.01f;

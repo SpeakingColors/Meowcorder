@@ -48,7 +48,9 @@ public:
     void newSound();
 
     void startRecord(int mode);     // RecMode
-    void stopRecord();              // puts the take into the sound
+    void stopRecord();
+    void livePeaks(double seconds, int cols, float* mn, float* mx, bool* valid) const { const juce::ScopedLock sl(lock); recorder.peaks(seconds, cols, mn, mx, valid); }
+    bool grabLast(double seconds);   // the last seconds of input go into the sound like a take, even if nothing was recording              // puts the take into the sound
     bool isRecording() const;       // recording or armed
     bool isArmedOnly() const;
     bool isCountingIn() const { return countInLeft.load() > 0; }

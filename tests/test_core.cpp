@@ -190,8 +190,18 @@ static void testAudio()
     a.erase (n, 5 * n); CHECK (a.frames() == n);
 }
 
+static void testLivePeaks()
+{
+    Recorder r; r.prepare (48000, 5.0); std::vector<float> a (24000, 0.5f), b (24000, 0.f); r.process (a.data(), a.data(), a.size());   // half a second of sound
+    float mn[30], mx[30]; bool ok[30]; r.peaks (3.0, 30, mn, mx, ok);
+    CHECK (!ok[0] && !ok[24]);                 // before anything was heard
+    CHECK (ok[29] && mx[29] > 0.49f);          // the newest column holds the sound
+    r.process (b.data(), b.data(), b.size()); r.peaks (3.0, 30, mn, mx, ok); CHECK (ok[29] && mx[29] < 0.01f && mx[22] > 0.49f && !ok[15]);
+    Recorder e; e.prepare (48000, 5.0); e.peaks (3.0, 30, mn, mx, ok); bool any = false; for (bool v : ok) any = any || v; CHECK (!any);
+}
+
 int main()
 {
-    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis();
+    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testLivePeaks();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

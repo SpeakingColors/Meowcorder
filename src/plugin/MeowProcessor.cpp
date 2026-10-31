@@ -130,6 +130,12 @@ void MeowProcessor::stopRecord()
     if (a.frames() > 0) { doc.takeRecording(a, pendingTake); changed(); }
 }
 
+bool MeowProcessor::grabLast(double seconds)
+{
+    mc::Audio a; { const juce::ScopedLock sl(lock); a = recorder.captureLast(seconds); }
+    if (a.frames() < 2) return false; doc.takeRecording(a, juce::roundToInt(pTake->load())); changed(); return true;
+}
+
 void MeowProcessor::play()
 {
     if (doc.audio.frames() < 2) return;
