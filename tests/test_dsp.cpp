@@ -124,6 +124,17 @@ static void testHistory()
     CHECK (s.spectralCopy (r) && s.hasSpectralClip()); CHECK (s.spectralPaste (1000, 6000)); CHECK (s.history().done.back() == "Spectral paste"); s.undo(); s.undo(); CHECK (s.history().done.empty());
     Editor z; CHECK (!z.spectralEdit (true, { r }, 0.f) && !z.transform ("x", [] (Audio&) {}));
 }
+static void testSmallEraser()
+{
+    // A small box must take its own band down and leave the sound a box width or more away alone (within 2 dB).
+    Audio a; a.sr = 44100; a.ch[0].assign (88200, 0.f); a.ch[1].assign (88200, 0.f); unsigned r = 1;
+    for (size_t i = 0; i < a.frames(); ++i) { r = r * 1664525u + 1013904223u; const float v = ((float) (r >> 8) / 16777216.f - 0.5f) * 0.2f; a.ch[0][i] = a.ch[1][i] = v; }
+    Audio b = a; spectralEdit (b, { { 40000, 43600, 1000, 1400 } }, true, 0.f);
+    auto band = [] (const Audio& x, double f0, double f1) { double e = 0; for (double f = f0; f <= f1; f += (f1 - f0) / 12) { double re = 0, im = 0; for (long i = 40800; i < 42800; ++i) { const double w = 2 * kPiD * f * (double) i / x.sr; re += x.ch[0][(size_t) i] * std::cos (w); im += x.ch[0][(size_t) i] * std::sin (w); } e += re * re + im * im; } return 10 * std::log10 (e + 1e-12); };
+    CHECK (band (b, 1100, 1300) < band (a, 1100, 1300) - 8.0);
+    CHECK (std::fabs (band (b, 600, 800) - band (a, 600, 800)) < 2.0);
+    CHECK (std::fabs (band (b, 1800, 2200) - band (a, 1800, 2200)) < 2.0);
+}
 static void testHitsAndSplice()
 {
     // four clicks half a second apart are found, within a few ms
@@ -136,6 +147,6 @@ static void testHitsAndSplice()
 
 int main()
 {
-    testResample(); testStretchAndPitch(); testWarp(); testSpectral(); testDetect(); testFormat(); testPencil(); testHistory(); testHitsAndSplice();
+    testResample(); testStretchAndPitch(); testWarp(); testSpectral(); testDetect(); testFormat(); testPencil(); testHistory(); testHitsAndSplice(); testSmallEraser();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

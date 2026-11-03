@@ -126,37 +126,46 @@ function peakOverview(a, from, to, cols) {
 const SN = 2048, SH = 512, SWIN = (() => { const w = new Float64Array(SN); for (let i = 0; i < SN; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / SN); return w; })();
 function ifft(re, im) { const n = re.length; for (let i = 0; i < n; ++i) im[i] = -im[i]; fft(re, im); for (let i = 0; i < n; ++i) { re[i] /= n; im[i] = -im[i] / n; } }
 // region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, one bin in frequency (a box smaller than a bin still takes the nearest bin).
-function maskBins(regions, c, sr, m) {
-  m.fill(0); let any = false; const fe = SN / 2;
+function maskBins(regions, c, sr, m, N) {
+  N = N || SN;
+  m.fill(0); let any = false; const fe = N / 2;
   for (const r of regions) {
     const tw = clampf((c - r.t0) / fe + .5, 0, 1) * clampf((r.t1 - c) / fe + .5, 0, 1); if (tw <= 0) continue;
-    let kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr; if (kHi - kLo < 1) { const mid = (kLo + kHi) / 2; kLo = mid - .5; kHi = mid + .5; }
-    const a = Math.max(0, Math.floor(kLo)), b = Math.min(SN / 2, Math.ceil(kHi));
+    let kLo = r.f0 * N / sr, kHi = r.f1 * N / sr; if (kHi - kLo < 1) { const mid = (kLo + kHi) / 2; kLo = mid - .5; kHi = mid + .5; }
+    const a = Math.max(0, Math.floor(kLo)), b = Math.min(N / 2, Math.ceil(kHi));
     for (let k = a; k <= b; ++k) { const fw = clampf(k - kLo + .5, 0, 1) * clampf(kHi - k + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
   }
   return any;
 }
-function stft(a, s, e, edit) {
-  const L = e - s, outs = [new Float64Array(L), new Float64Array(L)], chans = [a.l, a.r], re = new Float64Array(SN), im = new Float64Array(SN), n = a.frames;
-  const j0 = Math.floor((s - SN) / SH) + 1, j1 = Math.floor((e - 1) / SH);
+function stftN(a, s, e, N, edit) {
+  const SH = N / 4, W = N === SN ? SWIN : (() => { const w = new Float64Array(N); for (let i = 0; i < N; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / N); return w; })();
+  const L = e - s, outs = [new Float64Array(L), new Float64Array(L)], chans = [a.l, a.r], re = new Float64Array(N), im = new Float64Array(N), n = a.frames;
+  const j0 = Math.floor((s - N) / SH) + 1, j1 = Math.floor((e - 1) / SH);
   for (let j = j0; j <= j1; ++j) {
-    const st = j * SH, c = st + SN / 2;
+    const st = j * SH, c = st + N / 2;
     for (let ch = 0; ch < 2; ++ch) {
-      const x = chans[ch]; for (let i = 0; i < SN; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; }
+      const x = chans[ch]; for (let i = 0; i < N; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * W[i]; im[i] = 0; }
       fft(re, im); edit(re, im, c, ch, j); ifft(re, im); const o = outs[ch];
-      for (let i = 0; i < SN; ++i) { const p = st + i - s; if (p >= 0 && p < L) o[p] += re[i] * SWIN[i]; }
+      for (let i = 0; i < N; ++i) { const p = st + i - s; if (p >= 0 && p < L) o[p] += re[i] * W[i]; }
     }
   }
   for (let i = 0; i < L; ++i) { a.l[s + i] = outs[0][i] / 1.5; a.r[s + i] = outs[1][i] / 1.5; }
 }
-function regionSpan(regions, a) { let t0 = 1e18, t1 = -1e18; for (const r of regions) { t0 = Math.min(t0, r.t0); t1 = Math.max(t1, r.t1); } return [Math.max(0, Math.floor(t0) - 2 * SN), Math.min(a.frames, Math.ceil(t1) + 2 * SN)]; }
+function stft(a, s, e, edit) { stftN(a, s, e, SN, edit); }
+function regionSpan(regions, a, N) { let t0 = 1e18, t1 = -1e18; for (const r of regions) { t0 = Math.min(t0, r.t0); t1 = Math.max(t1, r.t1); } return [Math.max(0, Math.floor(t0) - 2 * N), Math.min(a.frames, Math.ceil(t1) + 2 * N)]; }
+// Window size for an edit: a small box gets the best compromise between frequency detail (long window) and time detail (short window),
+// so a small eraser square touches little outside itself.
+function editWindow(regions, sr) {
+  let best = 1e18; for (const r of regions) { const T = Math.max(64, r.t1 - r.t0), F = Math.max(5, r.f1 - r.f0); best = Math.min(best, Math.sqrt(8 * sr * T / F)); }
+  let N = 1024; while (N * 1.41 < best && N < 16384) N *= 2; return N;
+}
 // mode 'cut': remove what is inside the regions. mode 'amp': change its level by gainDb.
 function spectralEdit(a, regions, mode, gainDb) {
-  if (!regions.length || !a.frames) return; const [s, e] = regionSpan(regions, a); if (e <= s) return;
-  const g = dbToLin(gainDb || 0), m = new Float64Array(SN / 2 + 1); let lastC = null, any = false;
-  stft(a, s, e, (re, im, c, ch) => {
-    if (ch === 0) { lastC = c; any = maskBins(regions, c, a.sr, m); } if (!any) return;
-    for (let k = 0; k <= SN / 2; ++k) { const v = m[k]; if (v <= 0) continue; const gk = mode === 'cut' ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk; if (k > 0 && k < SN / 2) { re[SN - k] *= gk; im[SN - k] *= gk; } }
+  if (!regions.length || !a.frames) return; const N = editWindow(regions, a.sr), [s, e] = regionSpan(regions, a, N); if (e <= s) return;
+  const g = dbToLin(gainDb || 0), m = new Float64Array(N / 2 + 1); let any = false;
+  stftN(a, s, e, N, (re, im, c, ch) => {
+    if (ch === 0) any = maskBins(regions, c, a.sr, m, N); if (!any) return;
+    for (let k = 0; k <= N / 2; ++k) { const v = m[k]; if (v <= 0) continue; const gk = mode === 'cut' ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk; if (k > 0 && k < N / 2) { re[N - k] *= gk; im[N - k] *= gk; } }
   });
 }
 function spectralCopy(a, r) {

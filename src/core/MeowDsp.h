@@ -37,53 +37,63 @@ inline void ifftRI (double* re, double* im, int n) { for (int i = 0; i < n; ++i)
 struct SpecRegion { double t0 = 0, t1 = 0, f0 = 0, f1 = 0; };
 
 // The edge is soft: half a window in time, one bin in frequency (a box smaller than a bin still takes the nearest bin). Returns true when any bin is touched.
-inline bool maskBins (const std::vector<SpecRegion>& regions, double c, double sr, std::vector<double>& m)
+inline bool maskBins (const std::vector<SpecRegion>& regions, double c, double sr, std::vector<double>& m, int N = kSN)
 {
-    std::fill (m.begin(), m.end(), 0.0); bool any = false; const double fe = kSN / 2;
+    std::fill (m.begin(), m.end(), 0.0); bool any = false; const double fe = N / 2;
     auto cl = [] (double v) { return v < 0 ? 0.0 : (v > 1 ? 1.0 : v); };
     for (const auto& r : regions)
     {
         const double tw = cl ((c - r.t0) / fe + 0.5) * cl ((r.t1 - c) / fe + 0.5); if (tw <= 0) continue;
-        double kLo = r.f0 * kSN / sr, kHi = r.f1 * kSN / sr; if (kHi - kLo < 1) { const double mid = (kLo + kHi) / 2; kLo = mid - 0.5; kHi = mid + 0.5; }
-        const int a = std::max (0, (int) std::floor (kLo)), b = std::min (kSN / 2, (int) std::ceil (kHi));
+        double kLo = r.f0 * N / sr, kHi = r.f1 * N / sr; if (kHi - kLo < 1) { const double mid = (kLo + kHi) / 2; kLo = mid - 0.5; kHi = mid + 0.5; }
+        const int a = std::max (0, (int) std::floor (kLo)), b = std::min (N / 2, (int) std::ceil (kHi));
         for (int k = a; k <= b; ++k) { const double fw = cl (k - kLo + 0.5) * cl (kHi - k + 0.5), v = tw * fw; if (v > m[(size_t) k]) { m[(size_t) k] = v; any = true; } }
     }
     return any;
 }
 
 // Runs edit(re, im, centreFrame, channel, frameIndex) on every STFT frame touching [s, e) and writes the result back.
-inline void stft (Audio& a, long long s, long long e, const std::function<void (double*, double*, double, int, long long)>& edit)
+inline void stftN (Audio& a, long long s, long long e, int N, const std::function<void (double*, double*, double, int, long long)>& edit)
 {
     const long long L = e - s, n = (long long) a.frames(); std::vector<double> outs[2] = { std::vector<double> ((size_t) L, 0.0), std::vector<double> ((size_t) L, 0.0) };
-    std::vector<double> re ((size_t) kSN), im ((size_t) kSN); const auto& W = swin();
-    const long long j0 = floorDiv (s - kSN, kSH) + 1, j1 = floorDiv (e - 1, kSH);
+    std::vector<double> re ((size_t) N), im ((size_t) N); std::vector<double> W ((size_t) N); for (int i = 0; i < N; ++i) W[(size_t) i] = 0.5 - 0.5 * std::cos (2 * kPiD * i / N); const int H = N / 4;
+    const long long j0 = floorDiv (s - N, H) + 1, j1 = floorDiv (e - 1, H);
     for (long long j = j0; j <= j1; ++j)
     {
-        const long long st = j * kSH; const double c = (double) (st + kSN / 2);
+        const long long st = j * H; const double c = (double) (st + N / 2);
         for (int ch = 0; ch < 2; ++ch)
         {
-            const auto& x = a.ch[ch]; for (int i = 0; i < kSN; ++i) { const long long p = st + i; re[(size_t) i] = (p >= 0 && p < n ? (double) x[(size_t) p] : 0.0) * W[(size_t) i]; im[(size_t) i] = 0; }
-            fftRI (re.data(), im.data(), kSN); edit (re.data(), im.data(), c, ch, j); ifftRI (re.data(), im.data(), kSN);
-            for (int i = 0; i < kSN; ++i) { const long long p = st + i - s; if (p >= 0 && p < L) outs[ch][(size_t) p] += re[(size_t) i] * W[(size_t) i]; }
+            const auto& x = a.ch[ch]; for (int i = 0; i < N; ++i) { const long long p = st + i; re[(size_t) i] = (p >= 0 && p < n ? (double) x[(size_t) p] : 0.0) * W[(size_t) i]; im[(size_t) i] = 0; }
+            fftRI (re.data(), im.data(), N); edit (re.data(), im.data(), c, ch, j); ifftRI (re.data(), im.data(), N);
+            for (int i = 0; i < N; ++i) { const long long p = st + i - s; if (p >= 0 && p < L) outs[ch][(size_t) p] += re[(size_t) i] * W[(size_t) i]; }
         }
     }
     for (long long i = 0; i < L; ++i) { a.ch[0][(size_t) (s + i)] = (float) (outs[0][(size_t) i] / 1.5); a.ch[1][(size_t) (s + i)] = (float) (outs[1][(size_t) i] / 1.5); }
 }
 
+inline void stft (Audio& a, long long s, long long e, const std::function<void (double*, double*, double, int, long long)>& edit) { stftN (a, s, e, kSN, edit); }
+
 // cut: remove what is inside the boxes. Otherwise change its level by gainDb.
+// Window size for an edit: small boxes get the best compromise between frequency detail (long window) and time detail (short window),
+// so a small eraser square touches little outside itself. Never below the old 2048 for big boxes.
+inline int editWindow (const std::vector<SpecRegion>& regions, double sr)
+{
+    double best = 1e18; for (const auto& r : regions) { const double T = std::max (64.0, r.t1 - r.t0), F = std::max (5.0, r.f1 - r.f0); best = std::min (best, std::sqrt (8.0 * sr * T / F)); }
+    int N = 1024; while (N * 1.41 < best && N < 16384) N *= 2; return N;
+}
 inline void spectralEdit (Audio& a, const std::vector<SpecRegion>& regions, bool cut, float gainDb)
 {
     if (regions.empty() || a.frames() == 0) return;
+    const int N = editWindow (regions, a.sr);
     double t0 = 1e18, t1 = -1e18; for (auto& r : regions) { t0 = std::min (t0, r.t0); t1 = std::max (t1, r.t1); }
-    const long long s = std::max<long long> (0, (long long) std::floor (t0) - 2 * kSN), e = std::min<long long> ((long long) a.frames(), (long long) std::ceil (t1) + 2 * kSN); if (e <= s) return;
-    const double g = std::pow (10.0, gainDb / 20.0); std::vector<double> m ((size_t) kSN / 2 + 1); bool any = false;
-    stft (a, s, e, [&] (double* re, double* im, double c, int ch, long long)
+    const long long s = std::max<long long> (0, (long long) std::floor (t0) - 2 * N), e = std::min<long long> ((long long) a.frames(), (long long) std::ceil (t1) + 2 * N); if (e <= s) return;
+    const double g = std::pow (10.0, gainDb / 20.0); std::vector<double> m ((size_t) N / 2 + 1); bool any = false;
+    stftN (a, s, e, N, [&] (double* re, double* im, double c, int ch, long long)
     {
-        if (ch == 0) any = maskBins (regions, c, a.sr, m); if (!any) return;
-        for (int k = 0; k <= kSN / 2; ++k)
+        if (ch == 0) any = maskBins (regions, c, a.sr, m, N); if (!any) return;
+        for (int k = 0; k <= N / 2; ++k)
         {
             const double v = m[(size_t) k]; if (v <= 0) continue; const double gk = cut ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk;
-            if (k > 0 && k < kSN / 2) { re[kSN - k] *= gk; im[kSN - k] *= gk; }
+            if (k > 0 && k < N / 2) { re[N - k] *= gk; im[N - k] *= gk; }
         }
     });
 }
