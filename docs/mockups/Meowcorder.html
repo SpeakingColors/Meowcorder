@@ -1802,6 +1802,7 @@ document.addEventListener('keydown', e => {
   if (openIdx >= 0 && menuKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
   if (e.target.matches && e.target.matches('input, select, textarea')) return;
   if (document.querySelector('.modalbg')) return;
+  if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); stopPlay(); if (state.counting) cancelCount(); else if (rec.isRecording() || rec.isArmed()) stopRecording(); return; }
   for (const k of KEYS) { if (!keyMatch(k.p, e)) continue; if (k.it.en && !k.it.en()) continue; e.preventDefault(); k.it.f(); return; }
 }, true);
 function openKeys() {
