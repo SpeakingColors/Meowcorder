@@ -40,7 +40,7 @@ const gridCol = '#2a2d36', dim = '#8d92a0';
 let ctx = null, bus = null, analyser = null, inBus = null, procNode = null, demoSrc = null, micStream = null, micNode = null, playSrc = null, inAn = null, monNode = null;
 let tipOn = true, powerSave = false, showHits = true;
 const ed = new MC.Editor(OPS), rec = new MC.Recorder();
-const state = { monitor: true, recMono: false, tool: 'mouse', sreg: null, amp: 6, brush: 12, bars: 1, click: 1, counting: false, bits: 24, scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
+const state = { monitor: false, recMono: false, tool: 'mouse', sreg: null, amp: 6, brush: 12, bars: 1, click: 1, counting: false, bits: 24, scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
 const opP = OPS.map(o => o.params.map(d => d.def)), recP = { thresh: -40, pre: 200, bpm: 120 };
 
 Object.assign(state, { layers: { wave: true, spec: false, pitch: false }, combine: false, layout: 'overlay', front: 'wave', unit: 'time', scope: 'sel', mix: 100, ms: false, dither: true, aver: 0, bpmAuto: 0, stopPos: 0, pausePos: -1, playRatio: 1, demoKind: 'loop', rep: null, hits: [], pHover: null });
