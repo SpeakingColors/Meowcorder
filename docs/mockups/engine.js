@@ -125,13 +125,14 @@ function peakOverview(a, from, to, cols) {
 // ---------- spectral editing: STFT, Hann window, 75 percent overlap ----------
 const SN = 2048, SH = 512, SWIN = (() => { const w = new Float64Array(SN); for (let i = 0; i < SN; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / SN); return w; })();
 function ifft(re, im) { const n = re.length; for (let i = 0; i < n; ++i) im[i] = -im[i]; fft(re, im); for (let i = 0; i < n; ++i) { re[i] /= n; im[i] = -im[i] / n; } }
-// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, two bins in frequency.
+// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, one bin in frequency (a box smaller than a bin still takes the nearest bin).
 function maskBins(regions, c, sr, m) {
   m.fill(0); let any = false; const fe = SN / 2;
   for (const r of regions) {
     const tw = clampf((c - r.t0) / fe + .5, 0, 1) * clampf((r.t1 - c) / fe + .5, 0, 1); if (tw <= 0) continue;
-    const kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr, a = Math.max(0, Math.floor(kLo) - 2), b = Math.min(SN / 2, Math.ceil(kHi) + 2);
-    for (let k = a; k <= b; ++k) { const fw = clampf((k - kLo) / 2 + .5, 0, 1) * clampf((kHi - k) / 2 + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
+    let kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr; if (kHi - kLo < 1) { const mid = (kLo + kHi) / 2; kLo = mid - .5; kHi = mid + .5; }
+    const a = Math.max(0, Math.floor(kLo)), b = Math.min(SN / 2, Math.ceil(kHi));
+    for (let k = a; k <= b; ++k) { const fw = clampf(k - kLo + .5, 0, 1) * clampf(kHi - k + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
   }
   return any;
 }

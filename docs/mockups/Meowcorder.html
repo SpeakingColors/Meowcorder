@@ -495,13 +495,14 @@ function peakOverview(a, from, to, cols) {
 // ---------- spectral editing: STFT, Hann window, 75 percent overlap ----------
 const SN = 2048, SH = 512, SWIN = (() => { const w = new Float64Array(SN); for (let i = 0; i < SN; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / SN); return w; })();
 function ifft(re, im) { const n = re.length; for (let i = 0; i < n; ++i) im[i] = -im[i]; fft(re, im); for (let i = 0; i < n; ++i) { re[i] /= n; im[i] = -im[i] / n; } }
-// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, two bins in frequency.
+// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, one bin in frequency (a box smaller than a bin still takes the nearest bin).
 function maskBins(regions, c, sr, m) {
   m.fill(0); let any = false; const fe = SN / 2;
   for (const r of regions) {
     const tw = clampf((c - r.t0) / fe + .5, 0, 1) * clampf((r.t1 - c) / fe + .5, 0, 1); if (tw <= 0) continue;
-    const kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr, a = Math.max(0, Math.floor(kLo) - 2), b = Math.min(SN / 2, Math.ceil(kHi) + 2);
-    for (let k = a; k <= b; ++k) { const fw = clampf((k - kLo) / 2 + .5, 0, 1) * clampf((kHi - k) / 2 + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
+    let kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr; if (kHi - kLo < 1) { const mid = (kLo + kHi) / 2; kLo = mid - .5; kHi = mid + .5; }
+    const a = Math.max(0, Math.floor(kLo)), b = Math.min(SN / 2, Math.ceil(kHi));
+    for (let k = a; k <= b; ++k) { const fw = clampf(k - kLo + .5, 0, 1) * clampf(kHi - k + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
   }
   return any;
 }
@@ -1486,11 +1487,11 @@ function penEnd(d, p) {
 // waveform pencil: set the samples under the pen, only when single samples can be seen
 const wpOn = () => state.wpen && frontLayer() === 'wave';
 const wpSpp = () => (state.viewB - state.viewA) / (wave.clientWidth || 1000);
-function syncPen() { const b = $('#vPen'); if (b) { b.classList.toggle('on', state.wpen); b.innerHTML = svgOf('pencil'); setTip(b, 'Waveform pencil', 'Draw the wave by hand. Zoom in until you can see single samples, then drag over the wave to set them. Shift+Q turns it on or off.', 'Shift+Q'); } wave.style.cursor = state.wpen ? 'crosshair' : 'text'; $('#vHint2').textContent = state.wpen ? (wpSpp() <= 4 ? 'Pencil on: drag over the wave to draw it.' : 'Pencil on: zoom in until you see single samples.') : ''; }
+function syncPen() { const b = $('#vPen'); if (b) { b.classList.toggle('on', state.wpen); b.innerHTML = svgOf('pencil'); setTip(b, 'Waveform pencil', 'Draw the wave by hand. Zoom in until you can see single samples, then drag over the wave to set them. Hold Shift while dragging to erase: the wave under the pen goes silent, at any zoom. Shift+Q turns it on or off.', 'Shift+Q'); } wave.style.cursor = state.wpen ? 'crosshair' : 'text'; $('#vHint2').textContent = state.wpen ? (wpSpp() <= 4 ? 'Pencil on: drag to draw, Shift+drag to erase.' : 'Pencil on: zoom in to draw, or Shift+drag to erase.') : ''; }
 function toggleWPen() { state.wpen = !state.wpen; if (state.wpen && !state.layers.wave) showLayer('wave'); if (state.wpen && wpSpp() > 4 && ed.audio.frames) { const c = (ed.hasSelection() ? (ed.selA + ed.selB) / 2 : ed.cursor); const len = Math.max(64, wave.clientWidth / 8); state.viewA = c - len / 2; state.viewB = c + len / 2; clampView(); state.ver++; } syncPen(); }
 function wpVal(e) { const r = wave.getBoundingClientRect(), w = wave.clientWidth, h = wave.clientHeight, x = (e.clientX - r.left) / (r.width || 1) * w, y = (e.clientY - r.top) / (r.height || 1) * h, mono = isMono(ed.audio), lanes = mono ? 1 : 2, lh = h / lanes, lane = mono ? -1 : clamp(Math.floor(y / lh), 0, 1), mid = lh * ((mono ? 0 : lane) + .5); return { f: state.viewA + x / w * (state.viewB - state.viewA), v: clamp((mid - y) / (lh / 2 * .96), -1, 1), lane }; }
-function wpPut(d, e) { const q = wpVal(e), l = d.last; if (l && l.lane === q.lane) MC.pencilWave(ed.audio, l.f, l.v, q.f, q.v, q.lane); else MC.pencilWave(ed.audio, q.f, q.v, q.f, q.v, q.lane); d.last = q; d.did = true; const now = performance.now(); if (now - d.lastFlush > 50) { d.lastFlush = now; state.ver++; state.aver++; } }
-function wpStart(e) { if (!ed.audio.frames) return; if (wpSpp() > 4) { toast('Zoom in until you see single samples, then draw.'); return; } wave.setPointerCapture(e.pointerId); hideTip(); stopPlay(); ed.pushUndo('Pencil (waveform)'); state.drag = { wp: true, last: null, did: false, lastFlush: 0 }; wpPut(state.drag, e); }
+function wpPut(d, e) { const q = wpVal(e), l = d.last; if (d.er) q.v = 0; if (l && l.lane === q.lane) MC.pencilWave(ed.audio, l.f, l.v, q.f, q.v, q.lane); else MC.pencilWave(ed.audio, q.f, q.v, q.f, q.v, q.lane); d.last = q; d.did = true; const now = performance.now(); if (now - d.lastFlush > 50) { d.lastFlush = now; state.ver++; state.aver++; } }
+function wpStart(e) { if (!ed.audio.frames) return; const er = e.shiftKey; if (!er && wpSpp() > 4) { toast('Zoom in until you see single samples, then draw.'); return; } wave.setPointerCapture(e.pointerId); hideTip(); stopPlay(); ed.pushUndo(er ? 'Eraser (waveform)' : 'Pencil (waveform)'); state.drag = { wp: true, er, last: null, did: false, lastFlush: 0 }; wpPut(state.drag, e); }
 wave.addEventListener('pointermove', e => { const d = state.drag; if (d && d.wp) wpPut(d, e); });
 wave.addEventListener('pointerup', e => { const d = state.drag; if (!d || !d.wp) return; state.drag = null; if (d.did) { markEdited(); changed(); } else ed.undoStack.pop(); });
 

@@ -36,7 +36,7 @@ inline void ifftRI (double* re, double* im, int n) { for (int i = 0; i < n; ++i)
 // ---------- spectral editing: a box in time (frames) and frequency (Hz) ----------
 struct SpecRegion { double t0 = 0, t1 = 0, f0 = 0, f1 = 0; };
 
-// The edge is soft: half a window in time, two bins in frequency. Returns true when any bin is touched.
+// The edge is soft: half a window in time, one bin in frequency (a box smaller than a bin still takes the nearest bin). Returns true when any bin is touched.
 inline bool maskBins (const std::vector<SpecRegion>& regions, double c, double sr, std::vector<double>& m)
 {
     std::fill (m.begin(), m.end(), 0.0); bool any = false; const double fe = kSN / 2;
@@ -44,8 +44,9 @@ inline bool maskBins (const std::vector<SpecRegion>& regions, double c, double s
     for (const auto& r : regions)
     {
         const double tw = cl ((c - r.t0) / fe + 0.5) * cl ((r.t1 - c) / fe + 0.5); if (tw <= 0) continue;
-        const double kLo = r.f0 * kSN / sr, kHi = r.f1 * kSN / sr; const int a = std::max (0, (int) std::floor (kLo) - 2), b = std::min (kSN / 2, (int) std::ceil (kHi) + 2);
-        for (int k = a; k <= b; ++k) { const double fw = cl ((k - kLo) / 2 + 0.5) * cl ((kHi - k) / 2 + 0.5), v = tw * fw; if (v > m[(size_t) k]) { m[(size_t) k] = v; any = true; } }
+        double kLo = r.f0 * kSN / sr, kHi = r.f1 * kSN / sr; if (kHi - kLo < 1) { const double mid = (kLo + kHi) / 2; kLo = mid - 0.5; kHi = mid + 0.5; }
+        const int a = std::max (0, (int) std::floor (kLo)), b = std::min (kSN / 2, (int) std::ceil (kHi));
+        for (int k = a; k <= b; ++k) { const double fw = cl (k - kLo + 0.5) * cl (kHi - k + 0.5), v = tw * fw; if (v > m[(size_t) k]) { m[(size_t) k] = v; any = true; } }
     }
     return any;
 }
