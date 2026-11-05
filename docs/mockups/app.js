@@ -336,7 +336,19 @@ function drawSpec(opaque) {
   if (key !== specKey || !specCv) {
     specKey = key; const W = Math.max(1, Math.floor(w)), H = Math.max(1, Math.floor(h)), from = Math.floor(state.viewA), to = Math.ceil(state.viewB), hop = Math.max(64, Math.floor((to - from) / W)), sp = MC.spectrogram(a, from, to, 1024, hop);
     const img = new ImageData(W, H), fMax = a.sr / 2, row = new Int32Array(H); for (let y = 0; y < H; ++y) { const f = 20 * Math.pow(fMax / 20, 1 - y / (H - 1 || 1)); row[y] = clamp(Math.round(f / fMax * (sp.bins - 1)), 0, sp.bins - 1); }
-    for (let x = 0; x < W; ++x) { const fr = clamp(Math.floor(x / W * sp.frames), 0, sp.frames - 1); for (let y = 0; y < H; ++y) { const db = sp.db[fr * sp.bins + row[y]], p = PAL[clamp(Math.round((db + 90) / 90 * 255), 0, 255)], o = (y * W + x) * 4; img.data[o] = p[0]; img.data[o + 1] = p[1]; img.data[o + 2] = p[2]; img.data[o + 3] = 255; } }
+    // fine low end: below about 400 Hz a longer window (4096) is used, so a low tone is drawn where it is and not smeared over 100 Hz; blended up to 900 Hz
+    const LN = 4096, LB = LN / 2 + 1, X0 = 400, X1 = 900, step = Math.max(1, Math.ceil(W / 240)), nc = Math.ceil(W / step), lowDb = new Float32Array(nc * LB), tmp = new Float32Array(LB), span = to - from;
+    const rb = new Int32Array(H), rt = new Float32Array(H), rk = new Float32Array(H); let lowRows = 0;
+    for (let y = 0; y < H; ++y) { const f = 20 * Math.pow(fMax / 20, 1 - y / (H - 1 || 1)); if (f < X1) { lowRows++; const bf = f / (a.sr / LN); rb[y] = Math.min(LB - 2, Math.floor(bf)); rt[y] = bf - rb[y]; rk[y] = clamp((f - X0) / (X1 - X0), 0, 1); } else rb[y] = -1; }
+    if (lowRows) for (let c = 0; c < nc; ++c) { MC.specAt(a, from + (c * step + step / 2) / W * span, LN, tmp); lowDb.set(tmp, c * LB); }
+    // very fine bass: below 100 Hz a 16384 window (2.7 Hz per step) is used, blended into the 4096 one by 200 Hz, so a small edit down there is drawn where it is
+    const VN = 16384, VB = VN / 2 + 1, V0 = 100, V1 = 200, vstep = Math.max(1, Math.ceil(W / 110)), vnc = Math.ceil(W / vstep), vDb = new Float32Array(vnc * VB), vtmp = new Float32Array(VB), vb = new Int32Array(H), vt = new Float32Array(H), vk = new Float32Array(H); let vRows = 0;
+    for (let y = 0; y < H; ++y) { const f = 20 * Math.pow(fMax / 20, 1 - y / (H - 1 || 1)); if (f < V1) { vRows++; const bf = f / (a.sr / VN); vb[y] = Math.min(VB - 2, Math.floor(bf)); vt[y] = bf - vb[y]; vk[y] = clamp((f - V0) / (V1 - V0), 0, 1); } else vb[y] = -1; }
+    if (vRows) for (let c = 0; c < vnc; ++c) { MC.specAt(a, from + (c * vstep + vstep / 2) / W * span, VN, vtmp); vDb.set(vtmp, c * VB); }
+    for (let x = 0; x < W; ++x) { const fr = clamp(Math.floor(x / W * sp.frames), 0, sp.frames - 1), lc = clamp(Math.floor(x / step), 0, nc - 1) * LB; for (let y = 0; y < H; ++y) { let db = sp.db[fr * sp.bins + row[y]];
+      if (rb[y] >= 0) { const lo = lowDb[lc + rb[y]] * (1 - rt[y]) + lowDb[lc + rb[y] + 1] * rt[y]; db = lo * (1 - rk[y]) + db * rk[y]; }
+      if (vb[y] >= 0) { const vc = clamp(Math.floor(x / vstep), 0, vnc - 1) * VB, vlo = vDb[vc + vb[y]] * (1 - vt[y]) + vDb[vc + vb[y] + 1] * vt[y]; db = vlo * (1 - vk[y]) + db * vk[y]; }
+      const p = PAL[clamp(Math.round((db + 90) / 90 * 255), 0, 255)], o = (y * W + x) * 4; img.data[o] = p[0]; img.data[o + 1] = p[1]; img.data[o + 2] = p[2]; img.data[o + 3] = 255; } }
     if (!specCv) specCv = document.createElement('canvas'); specCv.width = W; specCv.height = H; specCv.getContext('2d').putImageData(img, 0, 0);
   }
   g.save(); g.globalAlpha = opaque ? 1 : .62; g.drawImage(specCv, 0, 0, w, h); g.restore();

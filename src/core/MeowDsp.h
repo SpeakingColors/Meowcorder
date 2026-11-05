@@ -80,9 +80,30 @@ inline int editWindow (const std::vector<SpecRegion>& regions, double sr)
     double best = 1e18; for (const auto& r : regions) { const double T = std::max (64.0, r.t1 - r.t0), F = std::max (5.0, r.f1 - r.f0); best = std::min (best, std::sqrt (8.0 * sr * T / F)); }
     int N = 1024; while (N * 1.41 < best && N < 16384) N *= 2; return N;
 }
+// Exact band edit for one box (see engine.js bandEdit): long FFT band filter, applied only inside the box in time with short fades.
+inline void bandEdit (Audio& a, const SpecRegion& r)
+{
+    const double sr = a.sr; const long long T0 = std::max<long long> (0, (long long) std::floor (r.t0)), T1 = std::min<long long> ((long long) a.frames(), (long long) std::ceil (r.t1)); if (T1 <= T0) return;
+    const double F = std::max (5.0, r.f1 - r.f0); const long long P = std::min<long long> (32768, std::max<long long> (2048, (long long) std::ceil (2 * sr / F)));
+    const long long s = std::max<long long> (0, T0 - P), e = std::min<long long> ((long long) a.frames(), T1 + P), L = e - s; int N = 1; while (N < L) N <<= 1;
+    const double df = sr / N, tr = 3; double kLo = r.f0 / df, kHi = r.f1 / df; if (kHi - kLo < tr) { const double mid = (kLo + kHi) / 2; kLo = mid - tr / 2; kHi = mid + tr / 2; }
+    auto cl = [] (double v) { return v < 0 ? 0.0 : (v > 1 ? 1.0 : v); };
+    std::vector<double> m ((size_t) N / 2 + 1); for (int k = 0; k <= N / 2; ++k) { const double u = cl ((k - kLo) / tr + 0.5) * cl ((kHi - k) / tr + 0.5); m[(size_t) k] = u * u * (3 - 2 * u); }
+    const long long T = T1 - T0; const double fe = std::min<double> (std::max<double> (16.0, (double) (T / 4)), std::floor (sr * 0.02));
+    std::vector<double> re ((size_t) N), im ((size_t) N);
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        auto& x = a.ch[ch]; std::fill (re.begin(), re.end(), 0.0); std::fill (im.begin(), im.end(), 0.0); for (long long i = 0; i < L; ++i) re[(size_t) i] = (double) x[(size_t) (s + i)];
+        fftRI (re.data(), im.data(), N);
+        for (int k = 0; k <= N / 2; ++k) { const double v = m[(size_t) k]; re[(size_t) k] *= v; im[(size_t) k] *= v; if (k > 0 && k < N / 2) { re[(size_t) (N - k)] *= v; im[(size_t) (N - k)] *= v; } }
+        ifftRI (re.data(), im.data(), N);
+        for (long long p = T0; p < T1; ++p) { const double u = std::min ({ 1.0, ((double) (p - T0) + 0.5) / fe, ((double) (T1 - p) - 0.5) / fe }), w = 0.5 - 0.5 * std::cos (kPiD * u); x[(size_t) p] = (float) ((double) x[(size_t) p] - w * re[(size_t) (p - s)]); }
+    }
+}
 inline void spectralEdit (Audio& a, const std::vector<SpecRegion>& regions, bool cut, float gainDb)
 {
     if (regions.empty() || a.frames() == 0) return;
+    if (cut) { for (const auto& r : regions) bandEdit (a, r); return; }
     const int N = editWindow (regions, a.sr);
     double t0 = 1e18, t1 = -1e18; for (auto& r : regions) { t0 = std::min (t0, r.t0); t1 = std::max (t1, r.t1); }
     const long long s = std::max<long long> (0, (long long) std::floor (t0) - 2 * N), e = std::min<long long> ((long long) a.frames(), (long long) std::ceil (t1) + 2 * N); if (e <= s) return;
@@ -92,7 +113,7 @@ inline void spectralEdit (Audio& a, const std::vector<SpecRegion>& regions, bool
         if (ch == 0) any = maskBins (regions, c, a.sr, m, N); if (!any) return;
         for (int k = 0; k <= N / 2; ++k)
         {
-            const double v = m[(size_t) k]; if (v <= 0) continue; const double gk = cut ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk;
+            const double v = m[(size_t) k]; if (v <= 0) continue; const double gk = 1 + v * (g - 1); re[k] *= gk; im[k] *= gk;
             if (k > 0 && k < N / 2) { re[N - k] *= gk; im[N - k] *= gk; }
         }
     });
