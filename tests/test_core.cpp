@@ -37,12 +37,12 @@ static void testTable()
 static void testWav()
 {
     Audio a = sine (440, 0.1f, 0.8f);
-    for (int bits : { 16, 24, 32 })
+    for (int bits : { 8, 16, 24, 32 })
     {
         const auto w = encodeWav (a, bits); Audio b; CHECK (decodeWav (w.data(), w.size(), b));
         CHECK (b.frames() == a.frames() && b.sr == a.sr);
         double err = 0; for (size_t i = 0; i < a.frames(); ++i) err = std::max (err, (double) std::fabs (a.ch[0][i] - b.ch[0][i]));
-        CHECK (err < (bits == 16 ? 1e-4 : (bits == 24 ? 1e-6 : 1e-9)));
+        CHECK (err < (bits == 8 ? 1e-2 : bits == 16 ? 1e-4 : (bits == 24 ? 1e-6 : 1e-9)));
     }
     uint8_t junk[20] = { 1, 2, 3 }; Audio b; CHECK (! decodeWav (junk, 20, b)); CHECK (! decodeWav (junk, 3, b));
     auto w = encodeWav (a, 16); w.resize (60); CHECK (decodeWav (w.data(), w.size(), b) && b.frames() > 0 && b.frames() < a.frames());   // truncated file still reads what is there
@@ -190,8 +190,18 @@ static void testAudio()
     a.erase (n, 5 * n); CHECK (a.frames() == n);
 }
 
+static void testLivePeaks()
+{
+    Recorder r; r.prepare (48000, 5.0); std::vector<float> a (24000, 0.5f), b (24000, 0.f); r.process (a.data(), a.data(), a.size());   // half a second of sound
+    float mn[30], mx[30]; bool ok[30]; r.peaks (3.0, 30, mn, mx, ok);
+    CHECK (!ok[0] && !ok[24]);                 // before anything was heard
+    CHECK (ok[29] && mx[29] > 0.49f);          // the newest column holds the sound
+    r.process (b.data(), b.data(), b.size()); r.peaks (3.0, 30, mn, mx, ok); CHECK (ok[29] && mx[29] < 0.01f && mx[22] > 0.49f && !ok[15]);
+    Recorder e; e.prepare (48000, 5.0); e.peaks (3.0, 30, mn, mx, ok); bool any = false; for (bool v : ok) any = any || v; CHECK (!any);
+}
+
 int main()
 {
-    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis();
+    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testLivePeaks();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

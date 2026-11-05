@@ -105,6 +105,14 @@ function fft(re, im) {
     for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let k = 0; k < len / 2; ++k) { const a = i + k, b = i + k + len / 2, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr; re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti; const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr; } }
   }
 }
+// One spectrum (dB) of the mix, window centred on a frame. Used for the fine low-frequency part of the spectral picture.
+const _hw = {};
+function specAt(a, centre, N, out) {
+  let h = _hw[N]; if (!h) { const w = new Float64Array(N); let ws = 0; for (let i = 0; i < N; ++i) { w[i] = .5 - .5 * Math.cos(2 * Math.PI * i / N); ws += w[i]; } h = _hw[N] = { w, ws, re: new Float64Array(N), im: new Float64Array(N) }; }
+  const st = Math.round(centre - N / 2), n = a.frames, { w, re, im } = h;
+  for (let i = 0; i < N; ++i) { const k = st + i; re[i] = (k >= 0 && k < n ? .5 * (a.l[k] + a.r[k]) : 0) * w[i]; im[i] = 0; }
+  fft(re, im); for (let b = 0; b <= N / 2; ++b) out[b] = Math.max(-120, 20 * Math.log10(Math.max(1e-9, Math.hypot(re[b], im[b]) * 2 / h.ws)));
+}
 function spectrogram(a, from, to, fftSize, hop) {
   to = Math.min(to, a.frames); from = Math.min(from, to); const n = to - from, bins = fftSize / 2 + 1, frames = n <= fftSize ? 1 : Math.floor((n - fftSize) / hop) + 1, db = new Float32Array(frames * bins).fill(-120);
   const w = new Float64Array(fftSize); let ws = 0; for (let i = 0; i < fftSize; ++i) { w[i] = .5 - .5 * Math.cos(2 * Math.PI * i / fftSize); ws += w[i]; }
@@ -125,37 +133,64 @@ function peakOverview(a, from, to, cols) {
 // ---------- spectral editing: STFT, Hann window, 75 percent overlap ----------
 const SN = 2048, SH = 512, SWIN = (() => { const w = new Float64Array(SN); for (let i = 0; i < SN; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / SN); return w; })();
 function ifft(re, im) { const n = re.length; for (let i = 0; i < n; ++i) im[i] = -im[i]; fft(re, im); for (let i = 0; i < n; ++i) { re[i] /= n; im[i] = -im[i] / n; } }
-// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, two bins in frequency.
-function maskBins(regions, c, sr, m) {
-  m.fill(0); let any = false; const fe = SN / 2;
+// region r = { t0, t1 (frames), f0, f1 (Hz) }. The edge is soft: half a window in time, one bin in frequency (a box smaller than a bin still takes the nearest bin).
+function maskBins(regions, c, sr, m, N) {
+  N = N || SN;
+  m.fill(0); let any = false; const fe = N / 2;
   for (const r of regions) {
     const tw = clampf((c - r.t0) / fe + .5, 0, 1) * clampf((r.t1 - c) / fe + .5, 0, 1); if (tw <= 0) continue;
-    const kLo = r.f0 * SN / sr, kHi = r.f1 * SN / sr, a = Math.max(0, Math.floor(kLo) - 2), b = Math.min(SN / 2, Math.ceil(kHi) + 2);
-    for (let k = a; k <= b; ++k) { const fw = clampf((k - kLo) / 2 + .5, 0, 1) * clampf((kHi - k) / 2 + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
+    let kLo = r.f0 * N / sr, kHi = r.f1 * N / sr; if (kHi - kLo < 1) { const mid = (kLo + kHi) / 2; kLo = mid - .5; kHi = mid + .5; }
+    const a = Math.max(0, Math.floor(kLo)), b = Math.min(N / 2, Math.ceil(kHi));
+    for (let k = a; k <= b; ++k) { const fw = clampf(k - kLo + .5, 0, 1) * clampf(kHi - k + .5, 0, 1), v = tw * fw; if (v > m[k]) { m[k] = v; any = true; } }
   }
   return any;
 }
-function stft(a, s, e, edit) {
-  const L = e - s, outs = [new Float64Array(L), new Float64Array(L)], chans = [a.l, a.r], re = new Float64Array(SN), im = new Float64Array(SN), n = a.frames;
-  const j0 = Math.floor((s - SN) / SH) + 1, j1 = Math.floor((e - 1) / SH);
+function stftN(a, s, e, N, edit) {
+  const SH = N / 4, W = N === SN ? SWIN : (() => { const w = new Float64Array(N); for (let i = 0; i < N; ++i) w[i] = .5 - .5 * Math.cos(2 * PI * i / N); return w; })();
+  const L = e - s, outs = [new Float64Array(L), new Float64Array(L)], chans = [a.l, a.r], re = new Float64Array(N), im = new Float64Array(N), n = a.frames;
+  const j0 = Math.floor((s - N) / SH) + 1, j1 = Math.floor((e - 1) / SH);
   for (let j = j0; j <= j1; ++j) {
-    const st = j * SH, c = st + SN / 2;
+    const st = j * SH, c = st + N / 2;
     for (let ch = 0; ch < 2; ++ch) {
-      const x = chans[ch]; for (let i = 0; i < SN; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * SWIN[i]; im[i] = 0; }
+      const x = chans[ch]; for (let i = 0; i < N; ++i) { const p = st + i; re[i] = (p >= 0 && p < n ? x[p] : 0) * W[i]; im[i] = 0; }
       fft(re, im); edit(re, im, c, ch, j); ifft(re, im); const o = outs[ch];
-      for (let i = 0; i < SN; ++i) { const p = st + i - s; if (p >= 0 && p < L) o[p] += re[i] * SWIN[i]; }
+      for (let i = 0; i < N; ++i) { const p = st + i - s; if (p >= 0 && p < L) o[p] += re[i] * W[i]; }
     }
   }
   for (let i = 0; i < L; ++i) { a.l[s + i] = outs[0][i] / 1.5; a.r[s + i] = outs[1][i] / 1.5; }
 }
-function regionSpan(regions, a) { let t0 = 1e18, t1 = -1e18; for (const r of regions) { t0 = Math.min(t0, r.t0); t1 = Math.max(t1, r.t1); } return [Math.max(0, Math.floor(t0) - 2 * SN), Math.min(a.frames, Math.ceil(t1) + 2 * SN)]; }
+function stft(a, s, e, edit) { stftN(a, s, e, SN, edit); }
+function regionSpan(regions, a, N) { let t0 = 1e18, t1 = -1e18; for (const r of regions) { t0 = Math.min(t0, r.t0); t1 = Math.max(t1, r.t1); } return [Math.max(0, Math.floor(t0) - 2 * N), Math.min(a.frames, Math.ceil(t1) + 2 * N)]; }
+// Window size for an edit: a small box gets the best compromise between frequency detail (long window) and time detail (short window),
+// so a small eraser square touches little outside itself.
+function editWindow(regions, sr) {
+  let best = 1e18; for (const r of regions) { const T = Math.max(64, r.t1 - r.t0), F = Math.max(5, r.f1 - r.f0); best = Math.min(best, Math.sqrt(8 * sr * T / F)); }
+  let N = 1024; while (N * 1.41 < best && N < 16384) N *= 2; return N;
+}
+// Exact band edit for one box: the band is filtered out of the sound with a long FFT (frequency edges follow the box, 3 bins of transition),
+// and only the time span of the box is changed, with short fades at its time edges. Nothing outside the box in time is touched,
+// and outside the band the sound changes only by the unavoidable time-limit spreading (about 1 / box length).
+function bandEdit(a, r, mode, gainDb) {
+  const sr = a.sr, T0 = Math.max(0, Math.floor(r.t0)), T1 = Math.min(a.frames, Math.ceil(r.t1)); if (T1 <= T0) return;
+  const F = Math.max(5, r.f1 - r.f0), P = clampf(Math.ceil(2 * sr / F), 2048, 32768), s = Math.max(0, T0 - P), e = Math.min(a.frames, T1 + P), L = e - s;
+  let N = 1; while (N < L) N <<= 1; const df = sr / N, tr = 3; let kLo = r.f0 / df, kHi = r.f1 / df; if (kHi - kLo < tr) { const mid = (kLo + kHi) / 2; kLo = mid - tr / 2; kHi = mid + tr / 2; }
+  const m = new Float64Array(N / 2 + 1); for (let k = 0; k <= N / 2; ++k) { const u = clampf((k - kLo) / tr + .5, 0, 1) * clampf((kHi - k) / tr + .5, 0, 1); m[k] = u * u * (3 - 2 * u); }
+  const T = T1 - T0, fe = clampf(Math.floor(T / 4), 16, Math.floor(sr * .02)), g = dbToLin(gainDb || 0) - 1, re = new Float64Array(N), im = new Float64Array(N);
+  for (const x of [a.l, a.r]) {
+    re.fill(0); im.fill(0); for (let i = 0; i < L; ++i) re[i] = x[s + i]; fft(re, im);
+    for (let k = 0; k <= N / 2; ++k) { const v = m[k]; re[k] *= v; im[k] *= v; if (k > 0 && k < N / 2) { re[N - k] *= v; im[N - k] *= v; } } ifft(re, im);
+    for (let p = T0; p < T1; ++p) { const u = Math.min(1, (p - T0 + .5) / fe, (T1 - p - .5) / fe), w = .5 - .5 * Math.cos(Math.PI * u); x[p] += (mode === 'cut' ? -1 : g) * w * re[p - s]; }
+  }
+}
 // mode 'cut': remove what is inside the regions. mode 'amp': change its level by gainDb.
 function spectralEdit(a, regions, mode, gainDb) {
-  if (!regions.length || !a.frames) return; const [s, e] = regionSpan(regions, a); if (e <= s) return;
-  const g = dbToLin(gainDb || 0), m = new Float64Array(SN / 2 + 1); let lastC = null, any = false;
-  stft(a, s, e, (re, im, c, ch) => {
-    if (ch === 0) { lastC = c; any = maskBins(regions, c, a.sr, m); } if (!any) return;
-    for (let k = 0; k <= SN / 2; ++k) { const v = m[k]; if (v <= 0) continue; const gk = mode === 'cut' ? 1 - v : 1 + v * (g - 1); re[k] *= gk; im[k] *= gk; if (k > 0 && k < SN / 2) { re[SN - k] *= gk; im[SN - k] *= gk; } }
+  if (!regions.length || !a.frames) return;
+  if (mode === 'cut') { for (const r of regions) bandEdit(a, r, 'cut', 0); return; }
+  const N = editWindow(regions, a.sr), [s, e] = regionSpan(regions, a, N); if (e <= s) return;
+  const g = dbToLin(gainDb || 0), m = new Float64Array(N / 2 + 1); let any = false;
+  stftN(a, s, e, N, (re, im, c, ch) => {
+    if (ch === 0) any = maskBins(regions, c, a.sr, m, N); if (!any) return;
+    for (let k = 0; k <= N / 2; ++k) { const v = m[k]; if (v <= 0) continue; const gk = 1 + v * (g - 1); re[k] *= gk; im[k] *= gk; if (k > 0 && k < N / 2) { re[N - k] *= gk; im[N - k] *= gk; } }
   });
 }
 function spectralCopy(a, r) {
@@ -543,6 +578,6 @@ function pencilWave(a, f0, v0, f1, v1, lane) { // lane: -1 both sides, 0 left, 1
   for (let f = Math.max(0, f0); f <= Math.min(a.frames - 1, f1); ++f) { const t = f1 === f0 ? 1 : (f - f0) / (f1 - f0), v = Math.max(-1, Math.min(1, v0 + (v1 - v0) * t)); if (lane !== 1) a.l[f] = v; if (lane !== 0) a.r[f] = v; }
 }
 
-const MC = { pencilTone, pencilWave, resample, resampleCh, pvStretch, pitchShift, pitchShiftRange, formantCorrect, warpAudio, detectPitch, detectNotes, detectBpm, quantize, channelOp, isMonoAudio, peakOverviewCh, spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
+const MC = { specAt, pencilTone, pencilWave, resample, resampleCh, pvStretch, pitchShift, pitchShiftRange, formantCorrect, warpAudio, detectPitch, detectNotes, detectBpm, quantize, channelOp, isMonoAudio, peakOverviewCh, spectralEdit, spectralCopy, spectralPaste, SN, SH, Audio, Editor, Recorder, applyOp, defaultParams, encodeWav, decodeWav, spectrogram, peakOverview, detectTransients, ID, Colour, dbToLin, linToDb };
 if (typeof module !== 'undefined' && module.exports) module.exports = MC; else root.MC = MC;
 })(typeof window !== 'undefined' ? window : globalThis);

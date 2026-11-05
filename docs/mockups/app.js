@@ -40,7 +40,7 @@ const gridCol = '#2a2d36', dim = '#8d92a0';
 let ctx = null, bus = null, analyser = null, inBus = null, procNode = null, demoSrc = null, micStream = null, micNode = null, playSrc = null, inAn = null, monNode = null;
 let tipOn = true, powerSave = false, showHits = true;
 const ed = new MC.Editor(OPS), rec = new MC.Recorder();
-const state = { monitor: true, recMono: false, tool: 'mouse', sreg: null, amp: 6, brush: 12, bars: 1, click: 1, counting: false, bits: 24, scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
+const state = { monitor: false, recMono: false, tool: 'mouse', sreg: null, amp: 6, brush: 12, bars: 1, click: 1, counting: false, bits: 24, scale: 1, ver: 0, viewA: 0, viewB: 1, playing: false, playA: 0, playN: 0, playT0: 0, loop: false, curOp: 0, takeMode: 1, startMode: 2, recOn: false, input: 'demo', lvl: 0, lvlHold: 0, lvlT: 0, drag: null, fname: 'demo loop, not saved' };
 const opP = OPS.map(o => o.params.map(d => d.def)), recP = { thresh: -40, pre: 200, bpm: 120 };
 
 Object.assign(state, { layers: { wave: true, spec: false, pitch: false }, combine: false, layout: 'overlay', front: 'wave', unit: 'time', scope: 'sel', mix: 100, ms: false, dither: true, aver: 0, bpmAuto: 0, stopPos: 0, pausePos: -1, playRatio: 1, demoKind: 'loop', rep: null, hits: [], pHover: null });
@@ -336,7 +336,19 @@ function drawSpec(opaque) {
   if (key !== specKey || !specCv) {
     specKey = key; const W = Math.max(1, Math.floor(w)), H = Math.max(1, Math.floor(h)), from = Math.floor(state.viewA), to = Math.ceil(state.viewB), hop = Math.max(64, Math.floor((to - from) / W)), sp = MC.spectrogram(a, from, to, 1024, hop);
     const img = new ImageData(W, H), fMax = a.sr / 2, row = new Int32Array(H); for (let y = 0; y < H; ++y) { const f = 20 * Math.pow(fMax / 20, 1 - y / (H - 1 || 1)); row[y] = clamp(Math.round(f / fMax * (sp.bins - 1)), 0, sp.bins - 1); }
-    for (let x = 0; x < W; ++x) { const fr = clamp(Math.floor(x / W * sp.frames), 0, sp.frames - 1); for (let y = 0; y < H; ++y) { const db = sp.db[fr * sp.bins + row[y]], p = PAL[clamp(Math.round((db + 90) / 90 * 255), 0, 255)], o = (y * W + x) * 4; img.data[o] = p[0]; img.data[o + 1] = p[1]; img.data[o + 2] = p[2]; img.data[o + 3] = 255; } }
+    // fine low end: below about 400 Hz a longer window (4096) is used, so a low tone is drawn where it is and not smeared over 100 Hz; blended up to 900 Hz
+    const LN = 4096, LB = LN / 2 + 1, X0 = 400, X1 = 900, step = Math.max(1, Math.ceil(W / 240)), nc = Math.ceil(W / step), lowDb = new Float32Array(nc * LB), tmp = new Float32Array(LB), span = to - from;
+    const rb = new Int32Array(H), rt = new Float32Array(H), rk = new Float32Array(H); let lowRows = 0;
+    for (let y = 0; y < H; ++y) { const f = 20 * Math.pow(fMax / 20, 1 - y / (H - 1 || 1)); if (f < X1) { lowRows++; const bf = f / (a.sr / LN); rb[y] = Math.min(LB - 2, Math.floor(bf)); rt[y] = bf - rb[y]; rk[y] = clamp((f - X0) / (X1 - X0), 0, 1); } else rb[y] = -1; }
+    if (lowRows) for (let c = 0; c < nc; ++c) { MC.specAt(a, from + (c * step + step / 2) / W * span, LN, tmp); lowDb.set(tmp, c * LB); }
+    // very fine bass: below 100 Hz a 16384 window (2.7 Hz per step) is used, blended into the 4096 one by 200 Hz, so a small edit down there is drawn where it is
+    const VN = 16384, VB = VN / 2 + 1, V0 = 100, V1 = 200, vstep = Math.max(1, Math.ceil(W / 110)), vnc = Math.ceil(W / vstep), vDb = new Float32Array(vnc * VB), vtmp = new Float32Array(VB), vb = new Int32Array(H), vt = new Float32Array(H), vk = new Float32Array(H); let vRows = 0;
+    for (let y = 0; y < H; ++y) { const f = 20 * Math.pow(fMax / 20, 1 - y / (H - 1 || 1)); if (f < V1) { vRows++; const bf = f / (a.sr / VN); vb[y] = Math.min(VB - 2, Math.floor(bf)); vt[y] = bf - vb[y]; vk[y] = clamp((f - V0) / (V1 - V0), 0, 1); } else vb[y] = -1; }
+    if (vRows) for (let c = 0; c < vnc; ++c) { MC.specAt(a, from + (c * vstep + vstep / 2) / W * span, VN, vtmp); vDb.set(vtmp, c * VB); }
+    for (let x = 0; x < W; ++x) { const fr = clamp(Math.floor(x / W * sp.frames), 0, sp.frames - 1), lc = clamp(Math.floor(x / step), 0, nc - 1) * LB; for (let y = 0; y < H; ++y) { let db = sp.db[fr * sp.bins + row[y]];
+      if (rb[y] >= 0) { const lo = lowDb[lc + rb[y]] * (1 - rt[y]) + lowDb[lc + rb[y] + 1] * rt[y]; db = lo * (1 - rk[y]) + db * rk[y]; }
+      if (vb[y] >= 0) { const vc = clamp(Math.floor(x / vstep), 0, vnc - 1) * VB, vlo = vDb[vc + vb[y]] * (1 - vt[y]) + vDb[vc + vb[y] + 1] * vt[y]; db = vlo * (1 - vk[y]) + db * vk[y]; }
+      const p = PAL[clamp(Math.round((db + 90) / 90 * 255), 0, 255)], o = (y * W + x) * 4; img.data[o] = p[0]; img.data[o + 1] = p[1]; img.data[o + 2] = p[2]; img.data[o + 3] = 255; } }
     if (!specCv) specCv = document.createElement('canvas'); specCv.width = W; specCv.height = H; specCv.getContext('2d').putImageData(img, 0, 0);
   }
   g.save(); g.globalAlpha = opaque ? 1 : .62; g.drawImage(specCv, 0, 0, w, h); g.restore();
@@ -565,11 +577,11 @@ function penEnd(d, p) {
 // waveform pencil: set the samples under the pen, only when single samples can be seen
 const wpOn = () => state.wpen && frontLayer() === 'wave';
 const wpSpp = () => (state.viewB - state.viewA) / (wave.clientWidth || 1000);
-function syncPen() { const b = $('#vPen'); if (b) { b.classList.toggle('on', state.wpen); b.innerHTML = svgOf('pencil'); setTip(b, 'Waveform pencil', 'Draw the wave by hand. Zoom in until you can see single samples, then drag over the wave to set them. Shift+Q turns it on or off.', 'Shift+Q'); } wave.style.cursor = state.wpen ? 'crosshair' : 'text'; $('#vHint2').textContent = state.wpen ? (wpSpp() <= 4 ? 'Pencil on: drag over the wave to draw it.' : 'Pencil on: zoom in until you see single samples.') : ''; }
+function syncPen() { const b = $('#vPen'); if (b) { b.classList.toggle('on', state.wpen); b.innerHTML = svgOf('pencil'); setTip(b, 'Waveform pencil', 'Draw the wave by hand. Zoom in until you can see single samples, then drag over the wave to set them. Hold Shift while dragging to erase: the wave under the pen goes silent, at any zoom. Shift+Q turns it on or off.', 'Shift+Q'); } wave.style.cursor = state.wpen ? 'crosshair' : 'text'; $('#vHint2').textContent = state.wpen ? (wpSpp() <= 4 ? 'Pencil on: drag to draw, Shift+drag to erase.' : 'Pencil on: zoom in to draw, or Shift+drag to erase.') : ''; }
 function toggleWPen() { state.wpen = !state.wpen; if (state.wpen && !state.layers.wave) showLayer('wave'); if (state.wpen && wpSpp() > 4 && ed.audio.frames) { const c = (ed.hasSelection() ? (ed.selA + ed.selB) / 2 : ed.cursor); const len = Math.max(64, wave.clientWidth / 8); state.viewA = c - len / 2; state.viewB = c + len / 2; clampView(); state.ver++; } syncPen(); }
 function wpVal(e) { const r = wave.getBoundingClientRect(), w = wave.clientWidth, h = wave.clientHeight, x = (e.clientX - r.left) / (r.width || 1) * w, y = (e.clientY - r.top) / (r.height || 1) * h, mono = isMono(ed.audio), lanes = mono ? 1 : 2, lh = h / lanes, lane = mono ? -1 : clamp(Math.floor(y / lh), 0, 1), mid = lh * ((mono ? 0 : lane) + .5); return { f: state.viewA + x / w * (state.viewB - state.viewA), v: clamp((mid - y) / (lh / 2 * .96), -1, 1), lane }; }
-function wpPut(d, e) { const q = wpVal(e), l = d.last; if (l && l.lane === q.lane) MC.pencilWave(ed.audio, l.f, l.v, q.f, q.v, q.lane); else MC.pencilWave(ed.audio, q.f, q.v, q.f, q.v, q.lane); d.last = q; d.did = true; const now = performance.now(); if (now - d.lastFlush > 50) { d.lastFlush = now; state.ver++; state.aver++; } }
-function wpStart(e) { if (!ed.audio.frames) return; if (wpSpp() > 4) { toast('Zoom in until you see single samples, then draw.'); return; } wave.setPointerCapture(e.pointerId); hideTip(); stopPlay(); ed.pushUndo('Pencil (waveform)'); state.drag = { wp: true, last: null, did: false, lastFlush: 0 }; wpPut(state.drag, e); }
+function wpPut(d, e) { const q = wpVal(e), l = d.last; if (d.er) q.v = 0; if (l && l.lane === q.lane) MC.pencilWave(ed.audio, l.f, l.v, q.f, q.v, q.lane); else MC.pencilWave(ed.audio, q.f, q.v, q.f, q.v, q.lane); d.last = q; d.did = true; const now = performance.now(); if (now - d.lastFlush > 50) { d.lastFlush = now; state.ver++; state.aver++; } }
+function wpStart(e) { if (!ed.audio.frames) return; const er = e.shiftKey; if (!er && wpSpp() > 4) { toast('Zoom in until you see single samples, then draw.'); return; } wave.setPointerCapture(e.pointerId); hideTip(); stopPlay(); ed.pushUndo(er ? 'Eraser (waveform)' : 'Pencil (waveform)'); state.drag = { wp: true, er, last: null, did: false, lastFlush: 0 }; wpPut(state.drag, e); }
 wave.addEventListener('pointermove', e => { const d = state.drag; if (d && d.wp) wpPut(d, e); });
 wave.addEventListener('pointerup', e => { const d = state.drag; if (!d || !d.wp) return; state.drag = null; if (d.did) { markEdited(); changed(); } else ed.undoStack.pop(); });
 
@@ -881,6 +893,7 @@ document.addEventListener('keydown', e => {
   if (openIdx >= 0 && menuKey(e)) { e.preventDefault(); e.stopPropagation(); return; }
   if (e.target.matches && e.target.matches('input, select, textarea')) return;
   if (document.querySelector('.modalbg')) return;
+  if (e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); stopPlay(); if (state.counting) cancelCount(); else if (rec.isRecording() || rec.isArmed()) stopRecording(); return; }
   for (const k of KEYS) { if (!keyMatch(k.p, e)) continue; if (k.it.en && !k.it.en()) continue; e.preventDefault(); k.it.f(); return; }
 }, true);
 function openKeys() {

@@ -8,6 +8,7 @@
 #include <complex>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,12 @@ struct Audio
         b = std::min (b, frames()); a = std::min (a, b);
         Audio o; o.sr = sr; for (int c = 0; c < 2; ++c) o.ch[c].assign (ch[c].begin() + (std::ptrdiff_t) a, ch[c].begin() + (std::ptrdiff_t) b);
         return o;
+    }
+    // Replaces frames a..b with w (any length).
+    void splice (size_t a, size_t b, const Audio& w)
+    {
+        b = std::min (b, frames()); a = std::min (a, b);
+        for (int c = 0; c < 2; ++c) { ch[c].erase (ch[c].begin() + (std::ptrdiff_t) a, ch[c].begin() + (std::ptrdiff_t) b); ch[c].insert (ch[c].begin() + (std::ptrdiff_t) a, w.ch[c].begin(), w.ch[c].end()); }
     }
     float peak (size_t a, size_t b) const
     {
@@ -163,6 +170,7 @@ inline std::vector<uint8_t> encodeWav (const Audio& a, int bits)
         {
             const float x = clampf (a.ch[c][i], -1.0f, 1.0f);
             if (flt) { uint32_t u; std::memcpy (&u, &x, 4); put32 (o, u); }
+            else if (bits == 8) { const int v = std::max (-128, std::min (127, (int) std::lrintf (x * 128.0f))) + 128; o.push_back ((uint8_t) v); }
             else if (bits == 16) { const int v = (int) std::lrintf (x * 32767.0f); put16 (o, (uint32_t) (v & 0xffff)); }
             else { const int v = (int) std::lrintf (x * 8388607.0f); o.push_back ((uint8_t) (v & 255)); o.push_back ((uint8_t) ((v >> 8) & 255)); o.push_back ((uint8_t) ((v >> 16) & 255)); }
         }
@@ -485,6 +493,9 @@ inline size_t applyOp (Audio& a, int op, size_t s, size_t e, const float* p)
     return e;
 }
 
+// Spectral editing, resampling, stretch, pitch, warp, detection, pencils (a port of the v4 engine of the mockup)
+#include "MeowDsp.h"
+
 // ---------- the editor: selection, undo, clipboard, repeat last operation ----------
 class Editor
 {
@@ -501,32 +512,61 @@ public:
     size_t rangeStart() const { return hasSelection() ? selA : 0; }
     size_t rangeEnd() const { return hasSelection() ? selB : audio.frames(); }
 
-    bool apply (int op, const float* p)
+    // all: ignore the selection and process everything. mix: 1 is fully processed, less blends the original back in (only for operations that keep the length).
+    bool apply (int op, const float* p, bool all = false, float mix = 1.f)
     {
         if (op < 0 || op >= opCount || audio.frames() == 0) return false;
-        pushUndo(); const size_t s = rangeStart(), e = rangeEnd(); const size_t ne = applyOp (audio, op, s, e, p);
-        if (hasSelection()) selB = ne; else if (kOps[op].changesLength) { selA = selB = 0; }
+        pushUndo (kOps[op].name); const size_t s = all ? 0 : rangeStart(), e = all ? audio.frames() : rangeEnd();
+        const bool blend = mix < 1.f && !kOps[op].changesLength; Audio dry; if (blend) dry = audio.slice (s, e);
+        const size_t ne = applyOp (audio, op, s, e, p);
+        if (blend) for (int c = 0; c < 2; ++c) for (size_t i = s; i < e && i < audio.frames(); ++i) audio.ch[c][i] = dry.ch[c][i - s] * (1.f - mix) + audio.ch[c][i] * mix;
+        if (hasSelection() && !all) selB = ne; else if (kOps[op].changesLength) { selA = selB = 0; }
         last.op = op; for (int i = 0; i < kMaxOpParams; ++i) last.p[i] = p[i]; return true;
     }
     bool repeatLast() { return last.op >= 0 && apply (last.op, last.p); }
 
     bool canUndo() const { return !undoStack.empty(); }
     bool canRedo() const { return !redoStack.empty(); }
-    void undo() { if (undoStack.empty()) return; redoStack.push_back (snap()); restore (undoStack.back()); undoStack.pop_back(); }
-    void redo() { if (redoStack.empty()) return; undoStack.push_back (snap()); restore (redoStack.back()); redoStack.pop_back(); }
+    void undo() { if (undoStack.empty()) return; redoStack.push_back (snap (undoStack.back().label)); restore (undoStack.back()); undoStack.pop_back(); }
+    void redo() { if (redoStack.empty()) return; undoStack.push_back (snap (redoStack.back().label)); restore (redoStack.back()); redoStack.pop_back(); }
+    // History: the steps done so far (oldest first) and the undone ones (the next redo first). jumpTo(k) goes to the state after k done steps.
+    struct History { std::vector<std::string> done, undone; };
+    History history() const { History h; for (auto& s : undoStack) h.done.push_back (s.label); for (size_t i = redoStack.size(); i-- > 0;) h.undone.push_back (redoStack[i].label); return h; }
+    void jumpTo (size_t k) { while (undoStack.size() > k && !undoStack.empty()) undo(); while (undoStack.size() < k && !redoStack.empty()) redo(); }
+    // Changes the sound with fn(audio); fn may replace it with a different length. One undo step.
+    bool transform (const std::string& label, const std::function<void (Audio&)>& fn)
+    {
+        if (audio.frames() == 0) return false; pushUndo (label.c_str()); const double sr = audio.sr; fn (audio); audio.sr = sr > 0 && audio.sr <= 0 ? sr : audio.sr;
+        selA = std::min (selA, audio.frames()); selB = std::min (selB, audio.frames()); cursor = std::min (cursor, audio.frames()); return true;
+    }
+    // Spectral editing. Regions are boxes in frames and Hz.
+    bool spectralEdit (bool cut, const std::vector<SpecRegion>& regions, float gainDb)
+    {
+        if (audio.frames() == 0 || regions.empty()) return false; pushUndo (cut ? "Spectral cut" : "Spectral amp"); mc::spectralEdit (audio, regions, cut, gainDb); return true;
+    }
+    bool spectralCopy (const SpecRegion& r) { SpecClip c = mc::spectralCopy (audio, r); if (!c.valid()) return false; sclip = std::move (c); return true; }
+    bool hasSpectralClip() const { return sclip.valid(); }
+    const SpecClip& spectralClip() const { return sclip; }
+    void cancelEdit() { if (!undoStack.empty()) undoStack.pop_back(); }   // drops the step beginEdit made when the stroke changed nothing
+    bool spectralPaste (double atFrame, double destHz)
+    {
+        if (!sclip.valid() || audio.frames() == 0) return false; pushUndo ("Spectral paste"); mc::spectralPaste (audio, sclip, atFrame, destHz); return true;
+    }
+    // The pencils change samples in place; call beginEdit once before a stroke so the whole stroke is one undo step.
+    void beginEdit (const char* label) { pushUndo (label); }
 
     void copy() { if (hasSelection()) clip = audio.slice (selA, selB); }
-    void cut() { if (!hasSelection()) return; clip = audio.slice (selA, selB); pushUndo(); audio.erase (selA, selB); cursor = selA; selB = selA; }
-    void deleteSelection() { if (!hasSelection()) return; pushUndo(); audio.erase (selA, selB); cursor = selA; selB = selA; }
-    void cropToSelection() { if (!hasSelection()) return; pushUndo(); audio = audio.slice (selA, selB); selA = 0; selB = audio.frames(); }
-    void paste() { if (clip.frames() == 0) return; pushUndo(); const size_t at = hasSelection() ? selA : std::min (cursor, audio.frames()); insert (at, clip); selA = at; selB = at + clip.frames(); }
-    void insertSilenceAtSelection (size_t n) { pushUndo(); const size_t at = rangeStart(); audio.insertSilence (at, n); selA = at; selB = at + n; }
+    void cut() { if (!hasSelection()) return; clip = audio.slice (selA, selB); pushUndo ("Cut"); audio.erase (selA, selB); cursor = selA; selB = selA; }
+    void deleteSelection() { if (!hasSelection()) return; pushUndo ("Delete"); audio.erase (selA, selB); cursor = selA; selB = selA; }
+    void cropToSelection() { if (!hasSelection()) return; pushUndo ("Crop"); audio = audio.slice (selA, selB); selA = 0; selB = audio.frames(); }
+    void paste() { if (clip.frames() == 0) return; pushUndo ("Paste"); const size_t at = hasSelection() ? selA : std::min (cursor, audio.frames()); insert (at, clip); selA = at; selB = at + clip.frames(); }
+    void insertSilenceAtSelection (size_t n) { pushUndo ("Insert silence"); const size_t at = rangeStart(); audio.insertSilence (at, n); selA = at; selB = at + n; }
     // Puts a recording into the sound. mode: 0 replace everything, 1 append at the end, 2 replace the selection (punch), 3 insert at the start of the selection.
     void takeRecording (const Audio& rec, int mode)
     {
         if (rec.frames() == 0) return;
         if (mode == 0 || audio.frames() == 0) { load (rec); return; }
-        pushUndo();
+        pushUndo ("Recording");
         if (mode == 1) { const size_t at = audio.frames(); insert (at, rec); selA = at; selB = at + rec.frames(); }
         else if (mode == 2 && hasSelection()) { const size_t a = selA; audio.erase (selA, selB); insert (a, rec); selA = a; selB = a + rec.frames(); }
         else { const size_t at = rangeStart(); insert (at, rec); selA = at; selB = at + rec.frames(); }
@@ -546,14 +586,14 @@ public:
     void setUndoLimitBytes (size_t b) { limitBytes = b; }
 
 private:
-    struct Snap { Audio a; size_t sa, sb; };
-    std::vector<Snap> undoStack, redoStack; Audio clip; size_t limitBytes = 400u * 1024u * 1024u;
-    Snap snap() const { return { audio, selA, selB }; }
+    struct Snap { Audio a; size_t sa, sb; std::string label; };
+    std::vector<Snap> undoStack, redoStack; Audio clip; SpecClip sclip; size_t limitBytes = 400u * 1024u * 1024u;
+    Snap snap (const std::string& label = "Edit") const { return { audio, selA, selB, label }; }
     void restore (const Snap& s) { audio = s.a; selA = s.sa; selB = s.sb; }
     void insert (size_t at, const Audio& x) { for (int c = 0; c < 2; ++c) audio.ch[c].insert (audio.ch[c].begin() + (std::ptrdiff_t) std::min (at, audio.frames()), x.ch[c].begin(), x.ch[c].end()); }
-    void pushUndo()
+    void pushUndo (const char* label = "Edit")
     {
-        undoStack.push_back (snap()); redoStack.clear();
+        undoStack.push_back (snap (label)); redoStack.clear();
         size_t bytes = 0; for (auto& s : undoStack) bytes += s.a.frames() * 8; while (undoStack.size() > 1 && bytes > limitBytes) { bytes -= undoStack.front().a.frames() * 8; undoStack.erase (undoStack.begin()); }
     }
 };
@@ -593,6 +633,21 @@ public:
         Audio o; o.sr = sr; size_t want = std::min (filled, (size_t) std::llround (seconds * sr)); o.resize (want);
         for (size_t i = 0; i < want; ++i) { const size_t k = (w + cap - want + i) % cap; o.ch[0][i] = ring[0][k]; o.ch[1][i] = ring[1][k]; }
         return o;
+    }
+    // Peaks of the last `seconds`, in `cols` columns, oldest first. Columns that lie before anything was heard are marked in `valid`.
+    void peaks (double seconds, int cols, float* mn, float* mx, bool* valid) const
+    {
+        const size_t total = std::max<size_t> (1, (size_t) std::llround (seconds * sr)); const size_t C = (size_t) std::max (1, cols);
+        for (size_t x = 0; x < C; ++x)
+        {
+            const size_t i0 = x * total / C, i1 = std::max (i0 + 1, (x + 1) * total / C); mn[x] = mx[x] = 0.f; valid[x] = false;
+            const size_t step = std::max<size_t> (1, (i1 - i0) / 48);
+            for (size_t i = i0; i < i1; i += step)
+            {
+                if (i + filled < total) continue;   // older than what the ring holds
+                const size_t k = (w + cap - total + i) % cap; const float v = 0.5f * (ring[0][k] + ring[1][k]); mn[x] = std::min (mn[x], v); mx[x] = std::max (mx[x], v); valid[x] = true;
+            }
+        }
     }
     size_t maxFrames = (size_t) 48000 * 60 * 20; // 20 minutes at 48 kHz, then it stops adding
 private:
