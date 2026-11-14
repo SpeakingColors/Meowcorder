@@ -1,0 +1,33 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libxcomposite-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Core tests (engine, no JUCE)
+        run: sh tests/run.sh
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build plugin, standalone and plugin test
+        run: cmake --build build --config Release --parallel 4
+      - name: Plugin glue test (record, edit, play, files, state)
+        run: build/MeowcorderPluginTest_artefacts/Release/MeowcorderPluginTest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Meowcorder-Linux
+          path: build/Meowcorder_artefacts/
+          if-no-files-found: warn
