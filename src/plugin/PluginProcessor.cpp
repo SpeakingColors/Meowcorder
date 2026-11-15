@@ -167,6 +167,7 @@ void MeowcorderProcessor::publish()
 
 void MeowcorderProcessor::audioChanged()
 {
+    previewing.store (false);
     publish(); dirty = true; ++version;
     const double n = (double) ed.audio.frames(); if (playPos.load() > n) playPos.store (n);
 }
@@ -220,6 +221,7 @@ bool MeowcorderProcessor::grabLastSeconds()
 
 void MeowcorderProcessor::play()
 {
+    endPreview();
     if (ed.audio.frames() < 2) return;
     const double n = (double) ed.audio.frames();
     const double start = ed.hasSelection() ? (double) ed.selA : (double) std::min (ed.cursor, ed.audio.frames() > 0 ? ed.audio.frames() - 1 : 0);
@@ -229,6 +231,22 @@ void MeowcorderProcessor::play()
 }
 
 void MeowcorderProcessor::stopPlayback() { playing.store (false); }
+
+void MeowcorderProcessor::startPreview (const mc::Audio& processed, size_t from, size_t to)
+{
+    if (processed.frames() < 2) return;
+    auto s = std::make_shared<const mc::Audio> (processed);
+    { juce::SpinLock::ScopedLockType l (snapLock); snap = s; }
+    keepAlive.push_back (s); while (keepAlive.size() > 4) keepAlive.pop_front();
+    to = std::min (to, processed.frames()); from = std::min (from, to);
+    playStart.store ((double) from); playEnd.store ((double) to); playPos.store ((double) from); previewing.store (true); playing.store (true);
+}
+
+void MeowcorderProcessor::endPreview()
+{
+    if (! previewing.exchange (false)) return;
+    playing.store (false); publish();
+}
 
 void MeowcorderProcessor::toMono (mc::Audio& a)
 {
@@ -278,7 +296,7 @@ bool MeowcorderProcessor::saveWav (const juce::File& f, int bits, juce::String& 
 void MeowcorderProcessor::getStateInformation (juce::MemoryBlock& d)
 {
     auto st = apvts.copyState();
-    st.setProperty ("exportBits", exportBits, nullptr); st.setProperty ("takeMode", takeMode, nullptr); st.setProperty ("uiScale", uiScalePercent, nullptr); st.setProperty ("startSel", startSel, nullptr); st.setProperty ("monoTakes", monoTakes, nullptr);
+    st.setProperty ("exportBits", exportBits, nullptr); st.setProperty ("takeMode", takeMode, nullptr); st.setProperty ("uiScale", uiScalePercent, nullptr); st.setProperty ("startSel", startSel, nullptr); st.setProperty ("monoTakes", monoTakes, nullptr); st.setProperty ("infoBubbles", infoBubbles, nullptr);
     st.setProperty ("version", 1, nullptr);
     if (auto xml = st.createXml()) copyXmlToBinary (*xml, d);
 }
@@ -292,7 +310,7 @@ void MeowcorderProcessor::setStateInformation (const void* data, int size)
     const int eb = (int) st.getProperty ("exportBits", 24); exportBits = (eb == 16 || eb == 24 || eb == 32) ? eb : 24;
     takeMode = juce::jlimit (0, 3, (int) st.getProperty ("takeMode", (int) takeAppend));
     uiScalePercent = juce::jlimit (50, 200, (int) st.getProperty ("uiScale", 100));
-    startSel = juce::jlimit (0, 2, (int) st.getProperty ("startSel", 1)); monoTakes = (bool) st.getProperty ("monoTakes", false);
+    startSel = juce::jlimit (0, 2, (int) st.getProperty ("startSel", 1)); monoTakes = (bool) st.getProperty ("monoTakes", false); infoBubbles = (bool) st.getProperty ("infoBubbles", true);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new MeowcorderProcessor(); }

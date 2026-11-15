@@ -108,6 +108,17 @@ int main()
     { mc::Audio a; a.sr = 48000.0; a.resize (4); a.ch[0][0] = 0.5f; a.ch[1][0] = -0.1f; a.ch[0][1] = 1.f; a.ch[1][1] = 1.f; MeowcorderProcessor::toMono (a);
       CHECK (std::fabs (a.ch[0][0] - 0.2f) < 1e-6f && a.ch[0][0] == a.ch[1][0] && std::fabs (a.ch[0][1] - 1.f) < 1e-6f); }
 
+    // 10. preview: the processed copy is played, the real sound stays as it was
+    {
+        mc::Audio quiet = p.ed.audio; for (auto& c : quiet.ch) for (float& x : c) x *= 0.1f; const float real = p.ed.audio.peak (0, p.ed.audio.frames());
+        setParam (p, "monitor", 0.f); p.startPreview (quiet, 15000, 30000); CHECK (p.isPlaying() && p.isPreviewing());
+        juce::AudioBuffer<float> o (2, 480); juce::MidiBuffer mm; o.clear(); p.processBlock (o, mm); const float quietMag = o.getMagnitude (0, 480);
+        CHECK (quietMag > 0.001f && quietMag < 0.08f);
+        p.endPreview(); CHECK (! p.isPlaying() && ! p.isPreviewing()); CHECK (std::fabs (p.ed.audio.peak (0, p.ed.audio.frames()) - real) < 1e-9f);
+        p.ed.setCursor (15000); p.play(); o.clear(); p.processBlock (o, mm); CHECK (o.getMagnitude (0, 480) > 0.1f);          // back to the real sound
+        p.stopPlayback();
+    }
+
     if (! fails) std::puts ("meowcorder_plugin_test: all passed");
     return fails ? 1 : 0;
 }

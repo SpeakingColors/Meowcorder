@@ -471,8 +471,9 @@ public:
                 addAndMakeVisible (*sl); sliders[i] = sl.get(); owned.push_back (std::move (sl));
             }
         }
-        addAndMakeVisible (apply); addAndMakeVisible (cancel); setWantsKeyboardFocus (true);
-        apply.onClick = [this] { commit(); done (true); }; cancel.onClick = [this] { done (false); };
+        addAndMakeVisible (apply); addAndMakeVisible (cancel); addAndMakeVisible (preview); setWantsKeyboardFocus (true);
+        preview.setTooltip ("Plays the result without changing the sound. Press again to stop."); preview.onClick = [this] { togglePreview(); };
+        apply.onClick = [this] { proc.endPreview(); commit(); done (true); }; cancel.onClick = [this] { proc.endPreview(); done (false); };
         setSize (600, 120 + 38 * std::max (1, info.nParams));
     }
     void paint (juce::Graphics& g) override
@@ -493,12 +494,20 @@ public:
             if (combos[i] != nullptr) combos[i]->setBounds (150, y, 200, 28);
             y += 38;
         }
-        apply.setBounds (getWidth() - 200, getHeight() - 40, 88, 28); cancel.setBounds (getWidth() - 104, getHeight() - 40, 88, 28);
+        preview.setBounds (getWidth() - 304, getHeight() - 40, 96, 28); apply.setBounds (getWidth() - 200, getHeight() - 40, 88, 28); cancel.setBounds (getWidth() - 104, getHeight() - 40, 88, 28);
     }
     bool keyPressed (const juce::KeyPress& k) override
     {
-        if (k == juce::KeyPress::returnKey) { commit(); done (true); return true; }
-        if (k == juce::KeyPress::escapeKey) { done (false); return true; } return false;
+        if (k == juce::KeyPress::returnKey) { proc.endPreview(); commit(); done (true); return true; }
+        if (k == juce::KeyPress::escapeKey) { proc.endPreview(); done (false); return true; }
+        if (k == juce::KeyPress::spaceKey) { togglePreview(); return true; } return false;
+    }
+    void togglePreview()
+    {
+        if (proc.isPreviewing() && proc.isPlaying()) { proc.endPreview(); preview.setButtonText ("Preview"); return; }
+        commit(); mc::Audio tmp = proc.ed.audio; if (tmp.frames() == 0) return;
+        const size_t s = proc.ed.rangeStart(), e = proc.ed.rangeEnd(); const size_t ne = mc::applyOp (tmp, op, s, e, proc.opParams[op]);
+        proc.startPreview (tmp, s, ne); preview.setButtonText ("Stop");
     }
     void commit()
     {
@@ -508,7 +517,7 @@ public:
 private:
     MeowcorderProcessor& proc; int op; std::function<void (bool)> done;
     std::vector<std::unique_ptr<juce::Component>> owned; juce::Label* labels[mc::kMaxOpParams] = {}; juce::Slider* sliders[mc::kMaxOpParams] = {}; juce::ComboBox* combos[mc::kMaxOpParams] = {};
-    juce::TextButton apply { "Apply" }, cancel { "Cancel" };
+    juce::TextButton apply { "Apply" }, cancel { "Cancel" }, preview { "Preview" };
 };
 } // namespace
 
@@ -614,7 +623,7 @@ public:
         // header: UI size
         { auto b = std::make_unique<TextBtn> ("scale", TextBtn::chip); b->setBounds (rc (layout::bZoom)); chips["scale"] = b.get(); b->setTooltip ("Size of the window. You can also drag its corners."); b->onClick = [this] { showScaleMenu(); }; addAndMakeVisible (*b); texts.push_back (std::move (b)); }
 
-        tips = std::make_unique<juce::TooltipWindow> (this, 600);
+        applyBubbles();
         ready = true; refresh (true); startTimerHz (30);
     }
 
@@ -734,7 +743,7 @@ public:
                 for (auto& gname : groups) { juce::PopupMenu sub; for (int o = 0; o < mc::opCount; ++o) if (gname == mc::kOps[o].group) item (sub, mc::kOps[o].name, layout::kOpMeta[o].shortcut, hasA, [this, o] { openPanel (o); }); m.addSubMenu (gname, sub); }
                 break;
             }
-            case 9: item (m, "Keyboard shortcuts", "", true, [this] { showShortcuts(); }); item (m, "About Meowcorder", "", true, [this] { showAbout(); }); break;
+            case 9: item (m, p.infoBubbles ? "Info bubbles: on" : "Info bubbles: off", "", true, [this] { p.infoBubbles = ! p.infoBubbles; applyBubbles(); }); m.addSeparator(); item (m, "Keyboard shortcuts", "", true, [this] { showShortcuts(); }); item (m, "About Meowcorder", "", true, [this] { showAbout(); }); break;
             default: break;
         }
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (anchor));
@@ -758,6 +767,7 @@ public:
     void showBitsMenu() { juce::PopupMenu m; for (int b : { 16, 24, 32 }) { juce::PopupMenu::Item it (b == 32 ? "32 bit float" : juce::String (b) + " bit"); it.setTicked (p.exportBits == b); it.setAction ([this, b] { p.exportBits = b; refresh(); }); m.addItem (it); } m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (chips["bits"])); }
     void showUnitMenu() { juce::PopupMenu m; const char* n[] = { "Time", "Seconds", "Samples" }; for (int i = 0; i < 3; ++i) { juce::PopupMenu::Item it (n[i]); it.setTicked (wave.unit == i); it.setAction ([this, i] { wave.unit = i; refresh(); ruler.repaint(); }); m.addItem (it); } m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (chips["unit"])); }
     void showScaleMenu() { juce::PopupMenu m; for (int s : { 75, 100, 125, 150, 200 }) { juce::PopupMenu::Item it (juce::String (s) + "%"); it.setTicked (p.uiScalePercent == s); it.setAction ([this, s] { editor.setScalePercent (s); }); m.addItem (it); } m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (chips["scale"])); }
+    void applyBubbles() { if (p.infoBubbles) { if (! tips) tips = std::make_unique<juce::TooltipWindow> (this, 600); } else tips.reset(); }
     void showShortcuts()
     {
         juce::String t = "Space: play or stop\nEnter: record or stop recording\nL: loop\nG: grab the last seconds\nCtrl+Z / Ctrl+Y: undo / redo\nR: repeat last operation\nCtrl+X, C, V, Del: cut, copy, paste, delete\nT: crop   Z: snap to zero   Ctrl+A: select all\n+ / -: zoom   F: show everything   S: zoom to selection\nMouse wheel: scroll, Ctrl+wheel: zoom\nShift+letter: apply an operation (see Process menu)";

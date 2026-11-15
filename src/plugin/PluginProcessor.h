@@ -52,6 +52,7 @@ public:
     int exportBits = 24;                                  // 16, 24 or 32 (float)
     int takeMode = takeAppend;
     int uiScalePercent = 100;
+    bool infoBubbles = true;                              // hover tips on or off
     int startSel = 1;                                     // 0 now, 1 on input, 2 count-in
     bool monoTakes = false;                               // a new take is made mono (left plus right)
     uint64_t version = 1;                                 // bumped on every change of the sound, the display uses it to redraw
@@ -67,6 +68,9 @@ public:
     double recordedSeconds() const { return (double) recFramesA.load() / std::max (1.0, hostSr); }
     void play();                                          // from the cursor, or the start of the selection
     void stopPlayback();
+    void startPreview (const mc::Audio& processed, size_t from, size_t to);   // plays a processed copy, the real sound is not touched
+    void endPreview();                                                         // stops it and puts the real sound back for playback
+    bool isPreviewing() const { return previewing.load(); }
     bool isPlaying() const { return playing.load(); }
     double playheadFrames() const { return playPos.load(); }
     void setPlayhead (double frames) { playPos.store (frames); }
@@ -97,6 +101,7 @@ private:
     juce::SpinLock snapLock; std::shared_ptr<const mc::Audio> snap; std::deque<std::shared_ptr<const mc::Audio>> keepAlive;
     std::atomic<bool> countInActive { false }, countInArm { false }; std::atomic<double> countInPos { 0.0 }, countInTotal { 0.0 }, countInBeat { 0.0 };
     std::atomic<float>* pTempo = nullptr;
+    std::atomic<bool> previewing { false };
     std::atomic<bool> playing { false }; std::atomic<double> playPos { 0.0 }, playStart { 0.0 }, playEnd { 0.0 };
     double hostSr = 48000.0; float liveAcc = 0.f; int liveCount = 0;
 

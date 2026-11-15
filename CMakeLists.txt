@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Meowcorder VERSION 0.3.0 LANGUAGES C CXX)
+project(Meowcorder VERSION 0.3.1 LANGUAGES C CXX)
 
 # Meowcorder: audio recorder and editor plugin (VST3 + standalone). The engine in src/core is pure C++ with no JUCE.
 include(FetchContent)
