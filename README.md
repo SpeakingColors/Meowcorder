@@ -1,11 +1,16 @@
 # Meowcorder
 
+<p align="center"><img src="docs/screenshot.png" width="900" alt="Meowcorder editor"></p>
+<p align="center"><sub>The plugin editor rendered offscreen with a demo loop (tools/snapshot.cpp).</sub></p>
+
 <p align="center"><a href="https://ko-fi.com/studio87"><img src="https://raw.githubusercontent.com/SpeakingColors/.github/main/assets/kofi-banner.svg" alt="Support Studio 87 on Ko-fi" width="440"></a></p>
 
 A free audio recorder and editor for Linux first (also Windows and macOS): record from a track or input, cut and process the sound, drop it back. Made for quick sound design in the middle of a project. Part of the Studio 87 cat plugin suite.
 
 ## Status
-Version 0.2 (first plugin build). The engine is done (pure C++, 619 passing checks) and the plugin now exists as VST3 and standalone, with the window ported from the mockup (`docs/mockups/Meowcorder.html`, open it in any browser to see the full design). Installers and a tested release are still to come, see [ROADMAP](ROADMAP.md) and the [manual](https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf).
+Source version 0.4 (pitch view and warp); the only GitHub release so far is v0.2.0, a pre-release. See the [web page](docs/index.html) for the screenshot, manual and mockup.
+
+Plugin builds so far: the engine is done (pure C++, 619 passing checks) and the plugin now exists as VST3 and standalone, with the window ported from the mockup (`docs/mockups/Meowcorder.html`, open it in any browser to see the full design). Installers and a tested release are still to come, see [ROADMAP](ROADMAP.md) and the [manual](https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf).
 
 What works in the plugin today: record from the track or input (start now, on input or after a four click count-in, pre-roll, grab the last seconds heard, mono or stereo takes), waveform with selection and zoom, spectral view with the Mouse, Select, Scissors, Cutter, Copy, Paste and Amp tools, pitch view (piano roll: drag a note to change its pitch), warp and transpose (stretch, repitch, beats, texture, formants), undo and redo with a history list to jump to any step, cut, copy, paste, delete, crop, snap to zero, all 24 operations with their settings and a Preview button, play and loop, open (WAV, AIFF, FLAC, OGG) and save as WAV (16, 24 or 32 bit float), drop a file on the window, resizable window.
 

@@ -1,7 +1,29 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meowcorder</title>
-<style>body{margin:0;background:#0d0e11;color:#e8eaf0;font:16px/1.5 system-ui,sans-serif}main{max-width:640px;margin:0 auto;padding:40px 16px}h1{margin:0 0 4px}a{color:#FF1383}p{color:#b5b9c6}.card{display:block;margin:12px 0;padding:14px 16px;border:1px solid #2a2d36;border-radius:8px;text-decoration:none;color:#e8eaf0}.card b{display:block;color:#02D9C0}</style></head>
-<body><main><h1>Meowcorder</h1><p>A free recorder and editor for Linux first, part of the Studio 87 cat plugin suite.</p>
-<a class="card" href="Meowcorder_manual.pdf"><b>Manual (PDF)</b>Interface tour, every control, shortcuts.</a>
-<a class="card" href="mockups/Meowcorder.html"><b>Try the interactive mockup</b>Runs in your browser. Nothing is sent anywhere.</a>
-<a class="card" href="https://github.com/SpeakingColors/Meowcorder"><b>Source code</b>Free and open source, AGPL-3.0-or-later.</a></main></body></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meowcorder</title>
+<style>
+:root{--bg:#161638;--panel:#1c1c4a;--line:#33403f;--text:#e8e6e1;--muted:#9a9690;--teal:#02EBBA;--pink:#FF1383;--amber:#FFA600}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,Arial,sans-serif}
+main{max-width:860px;margin:0 auto;padding:28px 16px 48px}
+h1{margin:0 0 4px;font-size:34px} h2{color:var(--teal);font-size:20px;margin:28px 0 8px}
+a{color:var(--pink)} .muted{color:var(--muted)}
+img.shot{width:100%;height:auto;border:1px solid var(--line);border-radius:8px;display:block}
+.cap{color:var(--muted);font-size:13px;margin-top:6px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}
+.box b{color:var(--amber)} li{margin:3px 0}
+code{background:#0e0e26;padding:1px 5px;border-radius:4px}
+.card{display:block;margin:10px 0;padding:12px 16px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--text);background:var(--panel)}.card b{display:block;color:var(--teal)}
+.links a{display:inline-block;margin:4px 12px 4px 0}
+</style></head><body><main>
+<h1>Meowcorder</h1>
+<p class="muted">Recorder and editor, VST3 and Standalone, Linux first · Studio 87</p>
+<p>A free audio recorder and editor for Linux first (also Windows and macOS): record from a track or input, cut and process the sound, drop it back. Part of the Studio 87 cat plugin suite.</p>
+<img class="shot" src="screenshot.png" alt="Meowcorder editor window, rendered offscreen from the plugin">
+<div class="cap">The plugin editor, rendered offscreen by the repo&#x27;s snapshot tool with a demo loop loaded. The full design is in the interactive mockup below.</div>
+<div class="box"><b>Status: early plugin build, test builds only</b><p>The source is at version 0.4 (pitch view and warp); the only GitHub release so far is v0.2.0, a pre-release. The plugin has been built and checked headless but not tried in a real DAW yet, and installers are still to be tested. Buttons for features that are not built yet are greyed out in the plugin.</p></div>
+<h2>Get it, read it, try it</h2><a class="card" href="Meowcorder_manual.pdf"><b>Manual (PDF)</b>Interface tour, every control, shortcuts.</a><a class="card" href="mockups/Meowcorder.html"><b>Interactive mockup</b>The full design in your browser. Nothing is sent anywhere.</a><a class="card" href="https://github.com/SpeakingColors/Meowcorder/releases"><b>Releases</b>Pre-release builds.</a><a class="card" href="https://github.com/SpeakingColors/Meowcorder"><b>Source code</b>Free and open source, AGPL-3.0-or-later.</a>
+<h2>What exists today</h2><ul><li>Pure C++ engine with checks (<code>sh tests/run.sh</code>).</li><li>VST3 and standalone with the window ported from the mockup: record from the track or input, waveform with selection and zoom, spectral view with box tools, pitch view (drag a note to retune it), warp and transpose, undo and redo with a history list, 24 operations with settings and Preview, play and loop, open WAV, AIFF, FLAC and OGG, save as WAV (16, 24 or 32 bit float).</li><li>A PDF manual with an interface tour, built from the mockup by <code>tools/make_manual.py</code>; release and build workflows in <code>.github/workflows</code>.</li><li>No telemetry, no network calls, nothing collected.</li></ul>
+<h2>What does not exist yet</h2><ul><li>Host tempo sync, the pencil tools, the spectral eraser and pencil, and the overlay and split views (the buttons are there, greyed out).</li><li>Dragging the result back into the host and the settings page.</li><li>A test in a real DAW (Bitwig, Ableton) and tested installers.</li><li>The sound you record is not saved inside the project: save it as a WAV to keep it. The name is not final.</li></ul>
+<div class="links"><h2>Links</h2><a href="https://ko-fi.com/studio87">Support Studio 87 on Ko-fi</a></div>
+<p class="cap">AGPL-3.0-or-later. Not affiliated with or endorsed by any hardware maker named here. All trademarks belong to their owners.</p></main></body></html>
