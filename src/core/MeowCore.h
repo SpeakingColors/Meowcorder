@@ -509,6 +509,116 @@ inline size_t applyOp (Audio& a, int op, size_t s, size_t e, const float* p)
     return e;
 }
 
+// ---------- spectral editing: STFT, Hann window, 75 percent overlap (same maths as docs/mockups/engine.js) ----------
+constexpr int kSN = 2048, kSH = 512;
+struct SRegion { double t0, t1, f0, f1; };          // a box on the picture: frames (time) and Hz (height)
+struct SpectralClip { int nf = 0, nb = 0, kLo = 0; double sr = 48000.0, fc = 1000.0; std::vector<std::complex<float>> ch[2]; };
+
+namespace detail
+{
+inline const std::vector<double>& swin()
+{
+    static const std::vector<double> w = [] { std::vector<double> v ((size_t) kSN); for (int i = 0; i < kSN; ++i) v[(size_t) i] = 0.5 - 0.5 * std::cos (2 * 3.14159265358979323846 * i / kSN); return v; }();
+    return w;
+}
+inline void ifft (std::vector<std::complex<double>>& x) { for (auto& v : x) v = std::conj (v); fft (x); const double n = (double) x.size(); for (auto& v : x) v = std::conj (v) / n; }
+// How much of every bin a set of boxes covers (0..1). The edge is soft: half a window in time, two bins in frequency.
+inline bool maskBins (const std::vector<SRegion>& regions, double c, double sr, std::vector<double>& m)
+{
+    std::fill (m.begin(), m.end(), 0.0); bool any = false; const double fe = kSN / 2;
+    for (const auto& r : regions)
+    {
+        const double tw = clampf ((float) ((c - r.t0) / fe + 0.5), 0.f, 1.f) * clampf ((float) ((r.t1 - c) / fe + 0.5), 0.f, 1.f); if (tw <= 0) continue;
+        const double kLo = r.f0 * kSN / sr, kHi = r.f1 * kSN / sr; const int a = std::max (0, (int) std::floor (kLo) - 2), b = std::min (kSN / 2, (int) std::ceil (kHi) + 2);
+        for (int k = a; k <= b; ++k) { const double fw = clampf ((float) ((k - kLo) / 2 + 0.5), 0.f, 1.f) * clampf ((float) ((kHi - k) / 2 + 0.5), 0.f, 1.f), v = tw * fw; if (v > m[(size_t) k]) { m[(size_t) k] = v; any = true; } }
+    }
+    return any;
+}
+// Runs `edit (spectrum, centreFrame, channel, frameIndex)` on every window that touches [s, e) and overlap-adds the result back.
+template <class Edit>
+inline void stft (Audio& a, long s, long e, Edit edit)
+{
+    const long L = e - s, n = (long) a.frames(); std::vector<double> outs[2] = { std::vector<double> ((size_t) L, 0.0), std::vector<double> ((size_t) L, 0.0) };
+    std::vector<std::complex<double>> buf ((size_t) kSN); const auto& w = swin();
+    const long j0 = (long) std::floor ((double) (s - kSN) / kSH) + 1, j1 = (long) std::floor ((double) (e - 1) / kSH);
+    for (long j = j0; j <= j1; ++j)
+    {
+        const long st = j * kSH, c = st + kSN / 2;
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            for (int i = 0; i < kSN; ++i) { const long p = st + i; buf[(size_t) i] = { (p >= 0 && p < n ? (double) a.ch[ch][(size_t) p] : 0.0) * w[(size_t) i], 0.0 }; }
+            fft (buf); edit (buf, (double) c, ch, j); ifft (buf);
+            for (int i = 0; i < kSN; ++i) { const long p = st + i - s; if (p >= 0 && p < L) outs[ch][(size_t) p] += buf[(size_t) i].real() * w[(size_t) i]; }
+        }
+    }
+    for (long i = 0; i < L; ++i) { a.ch[0][(size_t) (s + i)] = (float) (outs[0][(size_t) i] / 1.5); a.ch[1][(size_t) (s + i)] = (float) (outs[1][(size_t) i] / 1.5); }
+}
+inline bool regionSpan (const std::vector<SRegion>& regions, const Audio& a, long& s, long& e)
+{
+    double t0 = 1e18, t1 = -1e18; for (const auto& r : regions) { t0 = std::min (t0, r.t0); t1 = std::max (t1, r.t1); }
+    s = std::max (0L, (long) std::floor (t0) - 2L * kSN); e = std::min ((long) a.frames(), (long) std::ceil (t1) + 2L * kSN); return e > s;
+}
+} // namespace detail
+
+// cut: removes what is inside the boxes (the length stays). Otherwise the content of the boxes changes its level by gainDb.
+inline void spectralEdit (Audio& a, const std::vector<SRegion>& regions, bool cut, double gainDb)
+{
+    long s, e; if (regions.empty() || a.frames() == 0 || ! detail::regionSpan (regions, a, s, e)) return;
+    const double g = std::pow (10.0, gainDb / 20.0); std::vector<double> m ((size_t) kSN / 2 + 1); bool any = false;
+    detail::stft (a, s, e, [&] (std::vector<std::complex<double>>& x, double c, int ch, long)
+    {
+        if (ch == 0) any = detail::maskBins (regions, c, a.sr, m);
+        if (! any) return;
+        for (int k = 0; k <= kSN / 2; ++k)
+        {
+            const double v = m[(size_t) k]; if (v <= 0) continue; const double gk = cut ? 1 - v : 1 + v * (g - 1);
+            x[(size_t) k] *= gk; if (k > 0 && k < kSN / 2) x[(size_t) (kSN - k)] *= gk;
+        }
+    });
+}
+
+// Takes the piece of the picture inside the box (complex spectrum, both channels) so it can be pasted somewhere else.
+inline bool spectralCopy (const Audio& a, const SRegion& r, SpectralClip& clip)
+{
+    if (a.frames() == 0) return false;
+    const double sr = a.sr; const int kLo = std::max (0, (int) std::floor (r.f0 * kSN / sr) - 2), kHi = std::min (kSN / 2, (int) std::ceil (r.f1 * kSN / sr) + 2), nb = kHi - kLo + 1;
+    const long j0 = (long) std::ceil ((r.t0 - kSN / 4 - kSN / 2) / kSH), j1 = (long) std::floor ((r.t1 + kSN / 4 - kSN / 2) / kSH); const int nf = (int) std::max (1L, j1 - j0 + 1);
+    clip = SpectralClip(); clip.nf = nf; clip.nb = nb; clip.kLo = kLo; clip.sr = sr; clip.fc = std::sqrt (std::max (20.0, r.f0) * r.f1);
+    for (auto& c : clip.ch) c.assign ((size_t) nf * (size_t) nb, { 0.f, 0.f });
+    std::vector<double> m ((size_t) kSN / 2 + 1); std::vector<std::complex<double>> buf ((size_t) kSN); const auto& w = detail::swin(); const long n = (long) a.frames();
+    for (int f = 0; f < nf; ++f)
+    {
+        const long st = (j0 + f) * kSH, c = st + kSN / 2; detail::maskBins ({ r }, (double) c, sr, m);
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            for (int i = 0; i < kSN; ++i) { const long p = st + i; buf[(size_t) i] = { (p >= 0 && p < n ? (double) a.ch[ch][(size_t) p] : 0.0) * w[(size_t) i], 0.0 }; }
+            fft (buf);
+            for (int b = 0; b < nb; ++b) { const int k = kLo + b; const auto v = buf[(size_t) k] * m[(size_t) k]; clip.ch[ch][(size_t) f * (size_t) nb + (size_t) b] = { (float) v.real(), (float) v.imag() }; }
+        }
+    }
+    return true;
+}
+
+// Adds a copied piece back, its first frame at atFrame, its middle frequency at destHz (it can move up or down in pitch).
+inline bool spectralPaste (Audio& a, const SpectralClip& clip, double atFrame, double destHz)
+{
+    if (clip.nf <= 0 || a.frames() == 0) return false;
+    const double sr = a.sr; const long jt = (long) std::floor ((atFrame - kSN / 2) / kSH + 0.5); const long dk = (long) std::floor ((destHz - clip.fc) * kSN / sr + 0.5);
+    const long s = std::max (0L, jt * kSH - 2L * kSN), e = std::min ((long) a.frames(), (jt + clip.nf) * kSH + 3L * kSN); if (e <= s) return false;
+    detail::stft (a, s, e, [&] (std::vector<std::complex<double>>& x, double, int ch, long j)
+    {
+        const long f = j - jt; if (f < 0 || f >= clip.nf) return;
+        const double th = 2 * 3.14159265358979323846 * (double) dk * kSH * (double) f / kSN; const std::complex<double> rot (std::cos (th), std::sin (th));
+        for (int b = 0; b < clip.nb; ++b)
+        {
+            const long kk = clip.kLo + b + dk; if (kk < 1 || kk >= kSN / 2) continue;
+            const auto u = clip.ch[ch][(size_t) f * (size_t) clip.nb + (size_t) b]; const std::complex<double> v = std::complex<double> (u.real(), u.imag()) * rot;
+            x[(size_t) kk] += v; x[(size_t) (kSN - kk)] += std::conj (v);
+        }
+    });
+    return true;
+}
+
 // ---------- the editor: selection, undo, clipboard, repeat last operation ----------
 class Editor
 {
@@ -571,12 +681,22 @@ public:
         }
         return pos;
     }
+    // Spectral editing: boxes of time and frequency on the spectral view. One undo step each.
+    bool spectralEdit (bool cut, const std::vector<SRegion>& regions, double gainDb)
+    {
+        if (audio.frames() == 0 || regions.empty()) return false;
+        pushUndo (cut ? "Spectral cut" : "Spectral amp"); mc::spectralEdit (audio, regions, cut, gainDb); return true;
+    }
+    bool spectralCopy (const SRegion& r) { return mc::spectralCopy (audio, r, sclip); }
+    bool spectralPaste (double atFrame, double destHz) { if (sclip.nf <= 0 || audio.frames() == 0) return false; pushUndo ("Spectral paste"); return mc::spectralPaste (audio, sclip, atFrame, destHz); }
+    bool hasSpectralClip() const { return sclip.nf > 0; }
+    double spectralClipHz() const { return sclip.fc; }
     const Audio& clipboard() const { return clip; }
     void setUndoLimitBytes (size_t b) { limitBytes = b; }
 
 private:
     struct Snap { Audio a; size_t sa, sb; };
-    std::vector<Snap> undoStack, redoStack; std::vector<std::string> histLabels; size_t histPos = 0; Audio clip; size_t limitBytes = 400u * 1024u * 1024u;
+    std::vector<Snap> undoStack, redoStack; std::vector<std::string> histLabels; size_t histPos = 0; Audio clip; SpectralClip sclip; size_t limitBytes = 400u * 1024u * 1024u;
     Snap snap() const { return { audio, selA, selB }; }
     void restore (const Snap& s) { audio = s.a; selA = s.sa; selB = s.sb; }
     void insert (size_t at, const Audio& x) { for (int c = 0; c < 2; ++c) audio.ch[c].insert (audio.ch[c].begin() + (std::ptrdiff_t) std::min (at, audio.frames()), x.ch[c].begin(), x.ch[c].end()); }

@@ -219,8 +219,39 @@ static void testHistoryAndTempo()
     CHECK (near (detectBpm (dr2), 90.0, 1.5));
 }
 
+// Port of tools/spectral_test.js: the C++ spectral editing must behave like the one in the mockup.
+static double toneDb (const Audio& a, double f, size_t s0, size_t s1, double sr)
+{
+    double re = 0, im = 0; for (size_t i = s0; i < s1; ++i) { const double w = 2 * 3.14159265358979323846 * f * (double) i / sr; re += (double) a.ch[0][i] * std::cos (w); im += (double) a.ch[0][i] * std::sin (w); }
+    return 20 * std::log10 (std::max (1e-9, 2 * std::hypot (re, im) / (double) (s1 - s0)));
+}
+static void testSpectral()
+{
+    const double sr = 48000; const size_t n = (size_t) (3 * sr);
+    auto mk = [&] { Audio a; a.sr = sr; a.resize (n); for (size_t i = 0; i < n; ++i) { const double t = (double) i / sr, v = 0.3 * std::sin (2 * 3.14159265358979323846 * 1000 * t) + 0.3 * std::sin (2 * 3.14159265358979323846 * 3000 * t); a.ch[0][i] = (float) v; a.ch[1][i] = (float) (v * 0.5); } return a; };
+    Audio ref = mk(), a = mk(); spectralEdit (a, { { 10000, 20000, 100, 200 } }, false, 0.0);
+    double d = 0; for (size_t i = 0; i < n; ++i) d = std::max ({ d, (double) std::fabs (a.ch[0][i] - ref.ch[0][i]), (double) std::fabs (a.ch[1][i] - ref.ch[1][i]) });
+    CHECK (d < 1e-4);                                                                                                  // no change gives the same sound
+    const SRegion R { sr * 0.5, sr * 1.5, 2500, 3500 };
+    a = mk(); spectralEdit (a, { R }, true, 0.0);
+    CHECK (toneDb (a, 3000, (size_t) (sr * 0.7), (size_t) (sr * 1.3), sr) < -50);                                       // 3 kHz inside the box removed
+    CHECK (near (toneDb (a, 1000, (size_t) (sr * 0.7), (size_t) (sr * 1.3), sr), toneDb (ref, 1000, (size_t) (sr * 0.7), (size_t) (sr * 1.3), sr), 0.2));   // 1 kHz kept
+    CHECK (near (toneDb (a, 3000, (size_t) (sr * 2), (size_t) (sr * 2.5), sr), toneDb (ref, 3000, (size_t) (sr * 2), (size_t) (sr * 2.5), sr), 0.1));      // outside the time range kept
+    a = mk(); spectralEdit (a, { R }, false, 6.0);
+    CHECK (near (toneDb (a, 3000, (size_t) (sr * 0.7), (size_t) (sr * 1.3), sr) - toneDb (ref, 3000, (size_t) (sr * 0.7), (size_t) (sr * 1.3), sr), 6.0, 0.3));   // amp +6 dB
+    a = mk(); SpectralClip clip; CHECK (spectralCopy (a, { sr * 0.5, sr * 1.0, 2500, 3500 }, clip));
+    Audio b; b.sr = sr; b.resize (n); CHECK (spectralPaste (b, clip, sr * 2, clip.fc));
+    CHECK (near (toneDb (b, 3000, (size_t) (sr * 2.1), (size_t) (sr * 2.4), sr), toneDb (ref, 3000, (size_t) (sr * 0.5), (size_t) (sr * 1), sr), 1.0));        // pasted level matches
+    CHECK (toneDb (b, 1000, (size_t) (sr * 2.1), (size_t) (sr * 2.4), sr) < -50 && toneDb (b, 3000, (size_t) (sr * 0.5), (size_t) (sr * 1), sr) < -80);       // nothing else pasted
+    Audio c2; c2.sr = sr; c2.resize (n); spectralPaste (c2, clip, sr * 2, clip.fc + 2000);
+    const double up = 3000 + std::round (2000.0 * 2048 / sr) * sr / 2048;
+    CHECK (toneDb (c2, up, (size_t) (sr * 2.1), (size_t) (sr * 2.4), sr) > toneDb (c2, 3000, (size_t) (sr * 2.1), (size_t) (sr * 2.4), sr) + 40);                // paste moves up to 5 kHz
+    Editor ed; ed.load (mk()); CHECK (ed.spectralEdit (true, { R }, 0.0)); CHECK (ed.canUndo() && std::string (ed.historyLabel (1)) == "Spectral cut");
+    ed.undo(); double dd = 0; for (size_t i = 0; i < n; i += 97) dd = std::max (dd, (double) std::fabs (ed.audio.ch[0][i] - ref.ch[0][i])); CHECK (dd == 0.0);   // undo restores exactly
+}
+
 int main()
 {
-    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo();
+    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo(); testSpectral();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

@@ -350,6 +350,100 @@ private:
     MeowcorderProcessor& proc; WaveView& wave; mc::Peaks pk; uint64_t key = ~0ull;
 };
 
+// The spectral view: a picture of the frequencies (log scale, 20 Hz up) with tools that work on boxes of time and frequency.
+class SpecView : public juce::Component
+{
+public:
+    enum Tool { toolMouse, toolSelect, toolScissors, toolCutter, toolCopy, toolPaste, toolAmp };
+    SpecView (MeowcorderProcessor& p, WaveView& w, std::function<void()> edited, std::function<void()> changed) : proc (p), wave (w), onEdited (std::move (edited)), onChange (std::move (changed)) {}
+    int tool = toolMouse; double ampDb = 6.0; bool hasBox = false; mc::SRegion box { 0, 0, 20, 20 }; std::function<void (int)> setToolBack;
+
+    static juce::Colour palette (float db)
+    {
+        const float t = juce::jlimit (0.f, 1.f, (db + 90.f) / 90.f); static const float pos[] = { 0.f, 0.25f, 0.5f, 0.72f, 0.88f, 1.f };
+        static const juce::Colour col[] = { juce::Colour (0xff0a0a0c), juce::Colour (0xff25164a), juce::Colour (0xff8a1fa3), juce::Colour (0xffff1383), juce::Colour (0xffff9000), juce::Colour (0xfffff3b0) };
+        int i = 0; while (i < 4 && t > pos[i + 1]) ++i; return col[i].interpolatedWith (col[i + 1], (t - pos[i]) / (pos[i + 1] - pos[i]));
+    }
+    double fMax() const { return std::max (1000.0, proc.ed.audio.sr * 0.5); }
+    double hzAtY (int y) const { const int h = std::max (2, getHeight()); return 20.0 * std::pow (fMax() / 20.0, 1.0 - (double) juce::jlimit (0, h - 1, y) / (double) (h - 1)); }
+    int yAtHz (double hz) const { const int h = std::max (2, getHeight()); return (int) std::lround ((1.0 - std::log (std::max (20.0, hz) / 20.0) / std::log (fMax() / 20.0)) * (h - 1)); }
+    void applyBox (bool cut) { if (hasBox && proc.ed.spectralEdit (cut, { box }, ampDb)) onEdited(); }
+    void copyBox() { if (hasBox && proc.ed.spectralCopy (box)) { setTool (toolPaste); repaint(); } }
+    void setTool (int t) { tool = t; if (setToolBack) setToolBack (t); repaint(); }
+
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (juce::Colour (0xff0a0a0c)); const auto& a = proc.ed.audio; const int w = getWidth(), h = getHeight();
+        if (a.frames() == 0) { g.setColour (kDim); g.setFont (labelFont (18.f)); g.drawText ("Record something or drop a file here to see its frequencies.", getLocalBounds(), juce::Justification::centred); return; }
+        buildImage (w, h); g.drawImageAt (img, 0, 0);
+        g.setFont (monoFont (10.f));
+        for (double f : { 100.0, 1000.0, 10000.0 }) { if (f > fMax()) continue; const int y = yAtHz (f); g.setColour (juce::Colour (0x22ffffff)); g.drawHorizontalLine (y, 0.f, (float) w); g.setColour (kDim); g.drawText (f >= 1000 ? juce::String (f / 1000.0, 0) + " kHz" : juce::String (f, 0) + " Hz", 4, y - 12, 60, 11, juce::Justification::centredLeft); }
+        if (proc.ed.hasSelection()) { const int x0 = wave.xAt ((double) proc.ed.selA), x1 = wave.xAt ((double) proc.ed.selB); g.setColour (kPink.withAlpha (0.14f)); g.fillRect (x0, 0, std::max (1, x1 - x0), h); g.setColour (kPink); g.drawVerticalLine (x0, 0.f, (float) h); g.drawVerticalLine (x1, 0.f, (float) h); }
+        else { g.setColour (kInk.withAlpha (0.8f)); g.drawVerticalLine (wave.xAt ((double) proc.ed.cursor), 0.f, (float) h); }
+        if (hasBox) drawBox (g, box, kBlue, kBlue.withAlpha (0.13f), true);
+        if (dragging && tool >= toolSelect && tool != toolPaste) { auto b = dragBox(); if (tool == toolScissors) { b.f0 = 20; b.f1 = fMax(); } drawBox (g, b, tool == toolCutter || tool == toolScissors ? kPink : (tool == toolAmp ? kYellow : kBlue), juce::Colour (0x1cffffff), false); }
+        if (proc.isPlaying()) { const int x = wave.xAt (proc.playheadFrames()); if (x >= 0 && x < w) { g.setColour (kYellow); g.drawVerticalLine (x, 0.f, (float) h); } }
+    }
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (proc.ed.audio.frames() == 0) return; if (auto* top = getParentComponent()) top->grabKeyboardFocus();
+        p0 = e.getPosition(); p1 = p0; dragging = true;
+        if (tool == toolMouse) { const size_t f = (size_t) juce::jlimit (0.0, wave.frames(), wave.frameAt (e.x)); anchor = f; proc.ed.setCursor (f); if (proc.isPlaying()) proc.setPlayhead ((double) f); onChange(); }
+        repaint();
+    }
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (! dragging) return; p1 = e.getPosition();
+        if (tool == toolMouse && e.getDistanceFromDragStart() > 3) { const size_t f = (size_t) juce::jlimit (0.0, wave.frames(), wave.frameAt (e.x)); proc.ed.setSelection (anchor, f); onChange(); }
+        repaint();
+    }
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        if (! dragging) return; dragging = false; p1 = e.getPosition(); const bool tiny = std::abs (p1.x - p0.x) < 4 || std::abs (p1.y - p0.y) < 4; auto b = dragBox();
+        switch (tool)
+        {
+            case toolSelect: if (tiny) hasBox = false; else { hasBox = true; box = b; } break;
+            case toolScissors: if (std::abs (p1.x - p0.x) >= 4) { proc.ed.setSelection ((size_t) b.t0, (size_t) b.t1); proc.ed.deleteSelection(); onEdited(); } break;
+            case toolCutter: if (! tiny) { box = b; hasBox = true; applyBox (true); } break;
+            case toolAmp: if (! tiny) { box = b; hasBox = true; applyBox (false); } break;
+            case toolCopy: if (! tiny) { box = b; hasBox = true; copyBox(); } break;
+            case toolPaste: if (proc.ed.spectralPaste (wave.frameAt (e.x), hzAtY (e.y))) onEdited(); break;
+            default: break;
+        }
+        repaint(); onChange();
+    }
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override { wave.mouseWheelMove (e, w); }
+private:
+    mc::SRegion dragBox() const
+    {
+        const double ta = wave.frameAt (p0.x), tb = wave.frameAt (p1.x), ha = hzAtY (p0.y), hb = hzAtY (p1.y);
+        return { std::min (ta, tb), std::max (ta, tb), std::min (ha, hb), std::max (ha, hb) };
+    }
+    void drawBox (juce::Graphics& g, const mc::SRegion& r, juce::Colour edge, juce::Colour fill, bool label)
+    {
+        const int x0 = wave.xAt (r.t0), x1 = wave.xAt (r.t1), y0 = yAtHz (r.f1), y1 = yAtHz (r.f0); auto rr = juce::Rectangle<int> (x0, y0, std::max (1, x1 - x0), std::max (1, y1 - y0));
+        g.setColour (fill); g.fillRect (rr); g.setColour (edge); g.drawRect (rr, 1);
+        if (label) { g.setFont (monoFont (10.f)); g.drawText (juce::String ((int) r.f0) + " to " + juce::String ((int) r.f1) + " Hz", rr.getX() + 3, rr.getY() + 2, 160, 12, juce::Justification::centredLeft); }
+    }
+    void buildImage (int w, int h)
+    {
+        const auto& a = proc.ed.audio; const uint64_t key = proc.version * 1000003ull + (uint64_t) wave.viewStart * 31ull + (uint64_t) wave.viewLen * 17ull + (uint64_t) w * 7ull + (uint64_t) h;
+        if (key == cacheKey && img.isValid() && img.getWidth() == w && img.getHeight() == h) return; cacheKey = key;
+        const size_t from = (size_t) wave.viewStart, to = (size_t) std::ceil (wave.viewStart + wave.viewLen); const int hop = std::max (64, (int) ((to - from) / (size_t) std::max (1, w)));
+        const auto sp = mc::spectrogram (a, from, to, 1024, hop);
+        img = juce::Image (juce::Image::RGB, std::max (1, w), std::max (1, h), false); juce::Image::BitmapData bd (img, juce::Image::BitmapData::writeOnly);
+        static const std::array<juce::Colour, 256> pal = [] { std::array<juce::Colour, 256> p; for (int i = 0; i < 256; ++i) p[(size_t) i] = palette (-90.f + (float) i / 255.f * 90.f); return p; }();
+        std::vector<int> row ((size_t) h); for (int y = 0; y < h; ++y) { const double f = 20.0 * std::pow (fMax() / 20.0, 1.0 - (double) y / (double) std::max (1, h - 1)); row[(size_t) y] = juce::jlimit (0, sp.bins - 1, (int) std::lround (f / fMax() * (sp.bins - 1))); }
+        for (int x = 0; x < w; ++x)
+        {
+            const int fr = juce::jlimit (0, sp.frames - 1, (int) ((double) x / (double) w * sp.frames));
+            for (int y = 0; y < h; ++y) { const float db = sp.db[(size_t) fr * (size_t) sp.bins + (size_t) row[(size_t) y]]; bd.setPixelColour (x, y, pal[(size_t) juce::jlimit (0, 255, (int) std::lround ((db + 90.f) / 90.f * 255.f))]); }
+        }
+    }
+    MeowcorderProcessor& proc; WaveView& wave; std::function<void()> onEdited, onChange; juce::Image img; uint64_t cacheKey = ~0ull;
+    juce::Point<int> p0, p1; bool dragging = false; size_t anchor = 0;
+};
+
 // Settings of one operation: sliders and choices straight from the operation table, Apply and Cancel.
 class OpPanel : public juce::Component
 {
@@ -423,13 +517,13 @@ class MeowcorderEditor::Content : public juce::Component, public juce::FileDragA
 {
 public:
     Content (MeowcorderEditor& owner, MeowcorderProcessor& pr)
-        : editor (owner), p (pr), wave (pr, [this] { refresh(); }), meters (pr), live (pr), ruler (pr, wave), overview (pr, wave)
+        : editor (owner), p (pr), wave (pr, [this] { refresh(); }), spec (pr, wave, [this] { changed(); }, [this] { refresh(); }), meters (pr), live (pr), ruler (pr, wave), overview (pr, wave)
     {
         setWantsKeyboardFocus (true); setSize (layout::kW, layout::kH);
-        addAndMakeVisible (wave); addAndMakeVisible (meters); addAndMakeVisible (live); addAndMakeVisible (ruler); addAndMakeVisible (overview);
-        wave.onZoom = [this] { ruler.repaint(); overview.repaint(); refresh(); };
+        addAndMakeVisible (wave); addChildComponent (spec); addAndMakeVisible (meters); addAndMakeVisible (live); addAndMakeVisible (ruler); addAndMakeVisible (overview);
+        wave.onZoom = [this] { ruler.repaint(); overview.repaint(); spec.repaint(); refresh(); };
         wave.unit = 0; wave.audioReplaced();
-        setBoundsOf (live, 55, 272, 1155, 33); setBoundsOf (wave, 55, 337, 1155, 459); setBoundsOf (ruler, 55, 797, 1155, 21); setBoundsOf (overview, 55, 818, 1155, 33); setBoundsOf (meters, 1224, 68, 100, 778);
+        setBoundsOf (live, 55, 272, 1155, 33); setBoundsOf (wave, 55, 337, 1155, 459); setBoundsOf (spec, 55, 337, 1155, 459); setBoundsOf (ruler, 55, 797, 1155, 21); setBoundsOf (overview, 55, 818, 1155, 33); setBoundsOf (meters, 1224, 68, 100, 778);
 
         // menu bar
         const struct { const char* name; layout::R r; } menuDefs[] = { { "File", layout::mFile }, { "Edit", layout::mEdit }, { "Select", layout::mSelect }, { "View", layout::mView }, { "Spectral", layout::mSpectral },
@@ -438,7 +532,7 @@ public:
         for (auto& d : menuDefs)
         {
             auto b = std::make_unique<TextBtn> (d.name, TextBtn::menu); b->setBounds (rc (d.r)); const int idx = mi++; auto* raw = b.get();
-            b->onClick = [this, idx, raw] { showMenu (idx, raw); }; if (idx == 4 || idx == 5) { b->setActive (false); b->setTooltip (kSoon); }
+            b->onClick = [this, idx, raw] { showMenu (idx, raw); }; if (idx == 5) { b->setActive (false); b->setTooltip (kSoon); }
             addAndMakeVisible (*b); texts.push_back (std::move (b));
         }
 
@@ -490,8 +584,22 @@ public:
         for (auto* k : { "bInput", "bSpec" }) { byKey[k]->setActive (false); byKey[k]->setTooltip (juce::String (byKey[k]->getTooltip()).upToFirstOccurrenceOf (":", false, false) + ": " + kSoon); }
         add ("vComb", layout::vComb, [] {}); add ("vPen", layout::vPen, [] {}); byKey["vComb"]->setActive (false); byKey["vPen"]->setActive (false);
         {
-            const struct { const char* n; layout::R r; bool on; } tabs[] = { { "Waveform", layout::tWave, true }, { "Spectral", { 161, 310, 61, 21 }, false }, { "Pitch", { 221, 310, 47, 21 }, false } };
-            for (auto& t : tabs) { auto b = std::make_unique<TextBtn> (t.n, TextBtn::tab); b->setBounds (rc (t.r)); b->setOn (t.on); if (! t.on) { b->setActive (false); b->setTooltip (kSoon); } addAndMakeVisible (*b); texts.push_back (std::move (b)); }
+            const struct { const char* n; layout::R r; } tabs[] = { { "Waveform", layout::tWave }, { "Spectral", { 161, 310, 61, 21 } }, { "Pitch", { 221, 310, 47, 21 } } };
+            for (int i = 0; i < 3; ++i)
+            {
+                auto b = std::make_unique<TextBtn> (tabs[i].n, TextBtn::tab); b->setBounds (rc (tabs[i].r)); tabBtns[i] = b.get();
+                if (i == 2) { b->setActive (false); b->setTooltip (kSoon); } else b->onClick = [this, i] { setViewMode (i); };
+                addAndMakeVisible (*b); texts.push_back (std::move (b));
+            }
+            const char* tn[] = { "Mouse", "Select", "Scissors", "Cutter", "Copy", "Paste", "Amp" };
+            const char* tt[] = { "Click for the cursor, drag to select a time range.", "Drag a box over time and frequency. Use Cutter, Amp or Copy on the box from the Spectral menu.", "Drag across time: that slice is cut out and the gap closes.",
+                                 "Drag a box: the sound inside it is removed, the length stays.", "Drag a box to copy that piece, then click with Paste where it should land.", "Click where the copied piece should go. Left edge is time, height is frequency.", "Drag a box: it gets the level change set in the Spectral menu." };
+            int x = 352; for (int i = 0; i < 7; ++i)
+            {
+                auto b = std::make_unique<TextBtn> (tn[i], TextBtn::tab); const int wd = 58; b->setBounds (x, 310, wd, 21); x += wd + 2; b->setTooltip (tt[i]); const int t = i; b->onClick = [this, t] { spec.setTool (t); toolHint = toolHints[t]; refresh(); };
+                b->setVisible (false); addChildComponent (*b); toolBtns.push_back (std::move (b)); toolHints[i] = tt[i];
+            }
+            spec.setToolBack = [this] (int) { refresh(); };
         }
         // info chips
         const struct { const char* n; layout::R r; int kind; } chipDefs[] = { { "ch", layout::cCh, 0 }, { "sr", layout::cSr, 0 }, { "bits", layout::cBits, 1 }, { "unit", layout::cUnit, 2 }, { "bpm", layout::cBpm, 0 }, { "sync", layout::cSync, 0 }, { "warp", layout::cWarp, 0 } };
@@ -538,9 +646,15 @@ public:
         seg ("Selection", p.ed.hasSelection() ? fmtPos ((double) p.ed.selA, sr, wave.unit) + " to " + fmtPos ((double) p.ed.selB, sr, wave.unit) + " (" + fmtPos ((double) (p.ed.selB - p.ed.selA), sr, wave.unit) + ")" : "none, operations use everything");
         seg ("Cursor", fmtPos ((double) p.ed.cursor, sr, wave.unit)); seg ("Peak", fmtDb (a.peak (0, a.frames())) + " dBFS");
         g.setColour (kDim); g.setFont (labelFont (12.f)); g.drawText ("VIEW", 43, 311, 40, 18, juce::Justification::centredLeft);
+        if (viewMode == 1) { g.setFont (labelFont (12.5f)); g.drawText (toolHint, 770, 309, 430, 22, juce::Justification::centredLeft); }
     }
 
     // ---- actions
+    void setViewMode (int m)
+    {
+        viewMode = m; wave.setVisible (m == 0); spec.setVisible (m == 1); for (auto& b : toolBtns) b->setVisible (m == 1);
+        if (m == 1) toolHint = toolHints[juce::jlimit (0, 6, spec.tool)]; repaint (juce::Rectangle<int> (55, 300, 1155, 40)); refresh();
+    }
     void doNew() { if (p.ed.audio.frames() > 0) { p.ed.setSelection (0, p.ed.audio.frames()); p.ed.deleteSelection(); } p.soundName = "new sound, not saved"; changed(); }
     void doOpen()
     {
@@ -602,6 +716,16 @@ public:
                     item (m, "Cut", "Ctrl+X", sel, [this] { doCut(); }); item (m, "Copy", "Ctrl+C", sel, [this] { doCopy(); }); item (m, "Paste", "Ctrl+V", p.ed.clipboard().frames() > 0, [this] { doPaste(); }); item (m, "Delete", "Del", sel, [this] { doDelete(); }); item (m, "Crop", "T", sel, [this] { doCrop(); }); break;
             case 2: item (m, "Select all", "Ctrl+A", hasA, [this] { doSelectAll(); }); item (m, "Select none", "", hasA, [this] { doSelectNone(); }); item (m, "Snap to zero crossings", "Z", true, [this] { doSnap(); }); break;
             case 3: item (m, "Zoom in", "+", hasA, [this] { wave.zoom (0.5, centreFrame()); }); item (m, "Zoom out", "-", hasA, [this] { wave.zoom (2.0, centreFrame()); }); item (m, "Show everything", "F", hasA, [this] { wave.fit(); }); item (m, "Zoom to selection", "S", sel, [this] { wave.zoomToSelection(); }); break;
+            case 4:
+            {
+                item (m, viewMode == 1 ? "Show the waveform" : "Show the spectral view", "", true, [this] { setViewMode (viewMode == 1 ? 0 : 1); }); m.addSeparator();
+                const char* tn[] = { "Mouse", "Select box", "Scissors", "Cutter", "Copy", "Paste", "Amp" };
+                for (int i = 0; i < 7; ++i) { juce::PopupMenu::Item it (tn[i]); it.setTicked (spec.tool == i); it.setEnabled (hasA); it.setAction ([this, i] { setViewMode (1); spec.setTool (i); toolHint = toolHints[i]; refresh(); }); m.addItem (it); }
+                m.addSeparator(); juce::PopupMenu amp; for (int db : { -24, -12, -6, 3, 6, 12 }) { juce::PopupMenu::Item it (juce::String (db > 0 ? "+" : "") + juce::String (db) + " dB"); it.setTicked ((int) spec.ampDb == db); it.setAction ([this, db] { spec.ampDb = db; }); amp.addItem (it); }
+                m.addSubMenu ("Amp level", amp); m.addSeparator();
+                item (m, "Cut the box", "", spec.hasBox, [this] { spec.applyBox (true); }); item (m, "Amp the box", "", spec.hasBox, [this] { spec.applyBox (false); }); item (m, "Copy the box", "", spec.hasBox, [this] { spec.copyBox(); });
+                break;
+            }
             case 6: item (m, p.isPlaying() ? "Stop" : "Play", "Space", hasA, [this] { doPlay(); }); item (m, "Loop", "L", true, [this] { toggleParam ("loop"); }); break;
             case 7: item (m, p.recState() == MeowcorderProcessor::recOff ? "Record" : "Stop recording", "Enter", true, [this] { doRecord(); }); item (m, "Grab the last seconds", "G", true, [this] { doGrab(); }); m.addSeparator(); showTakeItems (m); break;
             case 8:
@@ -679,13 +803,13 @@ private:
         on ("bRec", rec); on ("bPlay", p.isPlaying()); on ("bLoop", p.apvts.getRawParameterValue ("loop")->load() > 0.5f); on ("bMon", p.apvts.getRawParameterValue ("monitor")->load() > 0.5f); on ("bSnap", wave.snapZero); on ("bMono", p.monoTakes); act ("bHist", p.ed.historySteps() > 1);
         act ("bUndo", p.ed.canUndo()); act ("bRedo", p.ed.canRedo()); act ("bCut", sel); act ("bCopy", sel); act ("bPaste", p.ed.clipboard().frames() > 0); act ("bDel", sel); act ("bCrop", sel);
         act ("bAll", has); act ("bZin", has); act ("bZout", has); act ("bFit", has); act ("bSel", sel); act ("bRepeat", p.ed.last.op >= 0); act ("bSave", has); act ("bPlay", has);
-        for (int i = 0; i < 3; ++i) segBtns[i]->setOn (p.startSel == i);
+        for (int i = 0; i < 3; ++i) segBtns[i]->setOn (p.startSel == i); for (int i = 0; i < 3; ++i) if (tabBtns[i] != nullptr) tabBtns[i]->setOn (viewMode == i); for (size_t i = 0; i < toolBtns.size(); ++i) toolBtns[i]->setOn (spec.tool == (int) i);
         const char* takes[] = { "Replace", "Append", "Punch in", "Insert" }; takeBtn->label = takes[juce::jlimit (0, 3, p.takeMode)]; takeBtn->repaint();
         chips["ch"]->label = "Stereo"; chips["sr"]->label = juce::String (p.ed.audio.sr / 1000.0, p.ed.audio.sr == 44100.0 ? 1 : 0) + " kHz"; chips["bits"]->label = p.exportBits == 32 ? "32 bit float" : juce::String (p.exportBits) + " bit";
         chips["unit"]->label = wave.unit == 0 ? "Time" : wave.unit == 1 ? "Seconds" : "Samples"; if (bpmKey != p.version) { bpmKey = p.version; bpmValue = mc::detectBpm (p.ed.audio); } chips["bpm"]->label = bpmValue > 0.f ? juce::String (bpmValue, 1) + " bpm" : juce::String ("no tempo"); chips["sync"]->label = "Free"; chips["warp"]->label = "Warp >";
         chips["scale"]->label = juce::String (p.uiScalePercent) + "%"; for (auto& kv : chips) kv.second->repaint();
         meters.thresholdDb = live.thresholdDb = p.apvts.getRawParameterValue ("threshold")->load(); meters.repaint(); live.repaint();
-        if (p.isPlaying() || force) wave.repaint();
+        if (p.isPlaying() || force) { wave.repaint(); if (viewMode == 1) spec.repaint(); }
         repaint (juce::Rectangle<int> (39, 64, 1183, 155)); repaint (juce::Rectangle<int> (39, 222, 1183, 28));
     }
     IconButton* add (const juce::String& key, const layout::R& r, std::function<void()> onClick, juce::Colour accent = kBlue)
@@ -698,7 +822,8 @@ private:
 
     bool ready = false; uint64_t bpmKey = 0; float bpmValue = 0.f;
     MeowcorderEditor& editor; MeowcorderProcessor& p;
-    WaveView wave; Meters meters; LiveStrip live; Ruler ruler; Overview overview;
+    WaveView wave; SpecView spec; Meters meters; LiveStrip live; Ruler ruler; Overview overview; int viewMode = 0;
+    std::vector<std::unique_ptr<TextBtn>> toolBtns; TextBtn* tabBtns[3] = {}; juce::String toolHint; juce::String toolHints[7];
     std::vector<std::unique_ptr<IconButton>> icons; std::vector<std::unique_ptr<TextBtn>> texts; std::map<juce::String, IconButton*> byKey; std::map<juce::String, TextBtn*> chips;
     IconButton* opButtons[mc::opCount] = {}; TextBtn* segBtns[3] = {}; std::unique_ptr<TextBtn> takeBtn; std::unique_ptr<Knob> knobs[3]; juce::Rectangle<int> valueRects[3];
     std::unique_ptr<OpPanel> panel; std::unique_ptr<juce::FileChooser> chooser; std::unique_ptr<juce::TooltipWindow> tips;
@@ -722,3 +847,5 @@ void MeowcorderEditor::resized()
 }
 
 void MeowcorderEditor::setScalePercent (int percent) { proc.uiScalePercent = juce::jlimit (50, 200, percent); setSize (layout::kW * proc.uiScalePercent / 100, layout::kH * proc.uiScalePercent / 100); }
+
+void MeowcorderEditor::showView (int mode) { content->setViewMode (mode); }

@@ -10,6 +10,7 @@ public:
     ~MeowcorderEditor() override;
     void resized() override;
     void setScalePercent (int percent);
+    void showView (int mode);              // 0 waveform, 1 spectral (used by the snapshot tool)
 
     class Content;                         // everything on screen, laid out in the 1382 x 876 design window
 

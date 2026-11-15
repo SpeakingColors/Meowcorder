@@ -1,5 +1,5 @@
 // Renders the real editor window to a PNG (no host, no display needed) so it can be compared with the mockup.
-// Usage: meowcorder_snapshot out.png [selection]
+// Usage: meowcorder_snapshot out.png [sel | spec]
 #include "plugin/PluginProcessor.h"
 #include "plugin/PluginEditor.h"
 
@@ -16,8 +16,9 @@ int main (int argc, char** argv)
         a.ch[0][i] = v; a.ch[1][i] = v * 0.97f;
     }
     p.ed.load (a); p.audioChanged(); p.soundName = "demo loop, not saved";
-    if (argc > 2) p.ed.setSelection ((size_t) (0.9 * 44100.0), (size_t) (2.1 * 44100.0));
+    if (argc > 2 && std::string (argv[2]) == "sel") p.ed.setSelection ((size_t) (0.9 * 44100.0), (size_t) (2.1 * 44100.0));
     std::unique_ptr<juce::AudioProcessorEditor> ed (p.createEditor());
+    if (argc > 2 && std::string (argv[2]) == "spec") static_cast<MeowcorderEditor*> (ed.get())->showView (1);
     ed->setVisible (true); ed->setBounds (0, 0, ed->getWidth(), ed->getHeight());
     juce::MessageManager::getInstance()->runDispatchLoopUntil (400);
     auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
