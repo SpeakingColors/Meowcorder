@@ -130,7 +130,7 @@ struct Display : juce::Component, juce::SettableTooltipClient
         if (frames() == 0) return; active = layerAt((float) e.y);
         if (active == LSpec && tool != Mouse) { specDown(e); return; }
         if (active == LPitch) { const int ni = noteAt(inBand(LPitch, e.position)); if (ni >= 0) { pd = PDrag(); pd.on = true; pd.note = ni; pd.y0 = e.position.y; repaint(); return; } }
-        if (active == LWave && wpen && vLen / (double) std::max(1, getWidth()) <= 4.0) { wpStart(e); return; }
+        if (active == LWave && wpen && (e.mods.isShiftDown() || vLen / (double) std::max(1, getWidth()) <= 4.0)) { wpStart(e); return; }
         dragFrom = (size_t) juce::jlimit(0.0, (double) frames(), xToFrame((float) e.x));
         if (e.mods.isShiftDown() && (p.doc.hasSelection() || p.doc.cursor > 0)) { const size_t a = p.doc.hasSelection() ? p.doc.selA : p.doc.cursor; p.doc.setSelection(a, dragFrom); }
         else p.doc.setCursor(dragFrom);
@@ -192,7 +192,7 @@ struct Display : juce::Component, juce::SettableTooltipClient
         const double secs = vLen / a.sr; double step = 0.001; for (double s : { 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0 }) { step = s; if (secs / s < 9) break; }
         g.setFont(mono(10.f)); const double t0 = vStart / a.sr;
         for (double t = std::ceil(t0 / step) * step; t < t0 + secs; t += step) { const float x = (float) ((t - t0) / secs * w); g.setColour(kDim); g.drawVerticalLine((int) x, (float) (getHeight() - rulerH), (float) (getHeight() - rulerH + 6)); g.drawText(timeText(t, step < 1.0), (int) x + 3, getHeight() - rulerH + 6, 80, 12, juce::Justification::left); }
-        if (wpen && vLen / (double) std::max(1, w) > 4.0) { g.setColour(kPink); g.setFont(mono(11.f)); g.drawText("Pencil is on: zoom in until you can see single samples, then draw.", 8, 6, 520, 14, juce::Justification::left); }
+        if (wpen && vLen / (double) std::max(1, w) > 4.0) { g.setColour(kPink); g.setFont(mono(11.f)); g.drawText("Pencil is on: zoom in to draw, or hold Shift and drag to erase.", 8, 6, 520, 14, juce::Justification::left); }
     }
     void paintWave(Graphics& g, juce::Rectangle<int> r, bool opaque)
     {
@@ -212,16 +212,16 @@ struct Display : juce::Component, juce::SettableTooltipClient
         }
     }
     // ---- waveform pencil: sets single samples under the pen ----
-    struct WP { bool on = false, did = false; bool has = false; double f = 0, v = 0; int lane = -1; juce::uint32 lastFlush = 0; } wp;
+    struct WP { bool on = false, did = false, erase = false; bool has = false; double f = 0, v = 0; int lane = -1; juce::uint32 lastFlush = 0; } wp;
     void wpValue(const juce::MouseEvent& e, double& f, double& v, int& lane) const
     {
         const auto b = bandOf(LWave); const bool m = monoV; const int lanes = m ? 1 : 2; const float lh = (float) b.getHeight() / (float) lanes, y = e.position.y - (float) b.getY();
         lane = m ? -1 : juce::jlimit(0, 1, (int) (y / lh)); const float mid = lh * (m ? 0.5f : ((float) lane + 0.5f)); f = xToFrame((float) e.x); v = juce::jlimit(-1.0, 1.0, (double) (-(y - mid) / (lh * 0.46f)));
     }
-    void wpStart(const juce::MouseEvent& e) { p.stopPlay(); p.doc.beginEdit("Pencil (waveform)"); wp = WP(); wp.on = true; wpPut(e); }
+    void wpStart(const juce::MouseEvent& e) { p.stopPlay(); const bool er = e.mods.isShiftDown(); p.doc.beginEdit(er ? "Eraser (waveform)" : "Pencil (waveform)"); wp = WP(); wp.on = true; wp.erase = er; wpPut(e); }
     void wpPut(const juce::MouseEvent& e)
     {
-        double f, v; int lane; wpValue(e, f, v, lane);
+        double f, v; int lane; wpValue(e, f, v, lane); if (wp.erase) v = 0.0;
         if (wp.has && wp.lane == lane) mc::pencilWave(p.doc.audio, wp.f, wp.v, f, v, lane); else mc::pencilWave(p.doc.audio, f, v, f, v, lane);
         wp.has = true; wp.f = f; wp.v = v; wp.lane = lane; wp.did = true; const auto now = juce::Time::getMillisecondCounter(); if (now - wp.lastFlush > 50) { wp.lastFlush = now; p.changed(); } repaint();
     }
@@ -300,15 +300,28 @@ struct Display : juce::Component, juce::SettableTooltipClient
             const size_t hop = std::max<size_t>(64, (to - from) / (size_t) std::max(1, w)); const mc::Spectrogram sp = mc::spectrogram(a, from, to, fftSize, (int) hop);
             spec = juce::Image(juce::Image::ARGB, std::max(1, w), std::max(1, h), true);
             if (sp.frames > 0 && sp.bins > 0)
+            {
+                // finer low end, like the mockup: below 900 Hz a 4096 window (blended in from 400 Hz), below 200 Hz a 16384 window (blended in from 100 Hz),
+                // so a low tone and a small edit down there are drawn where they are
+                const double sr = (double) a.sr, span = (double) (to - from), from0 = (double) from;
+                const int lowCols = std::max(1, std::min(w, 240)), vCols = std::max(1, std::min(w, 110));
+                const mc::Spectrogram lo = mc::spectrogramCols(a, from0, from0 + span, lowCols, 4096), vl = mc::spectrogramCols(a, from0, from0 + span, vCols, 16384);
                 for (int y = 0; y < h; ++y)
                 {
-                    const int bin = juce::jlimit(0, sp.bins - 1, (int) std::lround(hzAtY((float) y) / nyq() * (double) (sp.bins - 1)));
+                    const double hz = hzAtY((float) y); const int bin = juce::jlimit(0, sp.bins - 1, (int) std::lround(hz / nyq() * (double) (sp.bins - 1)));
+                    const bool useLo = hz < 900.0, useV = hz < 200.0; double bl = 0, tl = 0, kl = 0, bv = 0, tv = 0, kv = 0;
+                    if (useLo) { const double bf = hz / (sr / 4096.0); bl = std::min(4096 / 2 - 1.0, std::floor(bf)); tl = bf - bl; kl = juce::jlimit(0.0, 1.0, (hz - 400.0) / 500.0); }
+                    if (useV)  { const double bf = hz / (sr / 16384.0); bv = std::min(16384 / 2 - 1.0, std::floor(bf)); tv = bf - bv; kv = juce::jlimit(0.0, 1.0, (hz - 100.0) / 100.0); }
                     for (int x = 0; x < w; ++x)
                     {
-                        const int fi = juce::jlimit(0, sp.frames - 1, (int) ((double) x / w * sp.frames)); const float v = juce::jlimit(0.f, 1.f, (sp.at(fi, bin) + 90.f) / 80.f);
+                        const int fi = juce::jlimit(0, sp.frames - 1, (int) ((double) x / w * sp.frames)); float db = sp.at(fi, bin);
+                        if (useLo) { const int c = juce::jlimit(0, lo.frames - 1, (int) ((double) x / w * lo.frames)); const float l = lo.at(c, (int) bl) * (float) (1 - tl) + lo.at(c, (int) bl + 1) * (float) tl; db = l * (float) (1 - kl) + db * (float) kl; }
+                        if (useV)  { const int c = juce::jlimit(0, vl.frames - 1, (int) ((double) x / w * vl.frames)); const float l = vl.at(c, (int) bv) * (float) (1 - tv) + vl.at(c, (int) bv + 1) * (float) tv; db = l * (float) (1 - kv) + db * (float) kv; }
+                        const float v = juce::jlimit(0.f, 1.f, (db + 90.f) / 80.f);
                         spec.setPixelAt(x, y, Colour::fromHSV(0.72f - 0.72f * v, 0.85f, std::pow(v, 0.8f), 1.f));
                     }
                 }
+            }
         }
         g.drawImageAt(spec, 0, 0); g.setColour(kDim); g.setFont(mono(10.f)); for (double hz : { 100.0, 1000.0, 10000.0 }) if (hz < nyq()) { const float y = yAtHz(hz); g.setColour(Colour(0x33ffffff)); g.drawHorizontalLine((int) y, 0.f, (float) w); g.setColour(kDim); g.drawText(hz >= 1000 ? String((int) (hz / 1000)) + "k" : String((int) hz), 4, (int) y - 12, 40, 12, juce::Justification::left); }
     }
@@ -660,7 +673,7 @@ struct MeowEditor::Impl
         fFollow.onClick = [this] { p.warp.keepFormants = false; syncLayerUi(); }; fKeep.onClick = [this] { p.warp.keepFormants = true; syncLayerUi(); };
         dragCb.addItem("Drag: free", 1); dragCb.addItem("Drag: to a semitone", 2); dragCb.setSelectedId(1, juce::dontSendNotification); dragCb.onChange = [this] { display.snapNote = dragCb.getSelectedId() - 1; };
         snapAllB.setTooltip("Moves every note to the nearest exact semitone. Like a tuner for the whole sound, or for the selection."); fFollow.setTooltip("The voice character moves with the pitch, like speeding a tape."); fKeep.setTooltip("Keeps the voice character (the formants) while the pitch changes. Best for voices and instruments."); dragCb.setTooltip("How a dragged note lands: anywhere, or on a whole semitone.");
-        layoutB.setTooltip("Overlay: the views sit on top of each other. Split: one above the other."); frontB.setTooltip("Which view is in front and gets the mouse (click to switch)."); vComb.setTooltip("Show the views together (Alt+B)."); vPen.setTooltip("Waveform pencil: draw the wave by hand. Zoom in until you can see single samples, then drag over the wave.");
+        layoutB.setTooltip("Overlay: the views sit on top of each other. Split: one above the other."); frontB.setTooltip("Which view is in front and gets the mouse (click to switch)."); vComb.setTooltip("Show the views together (Alt+B)."); vPen.setTooltip("Waveform pencil: draw the wave by hand. Zoom in until you can see single samples, then drag over the wave. Hold Shift while dragging to erase: the wave under the pen goes silent, at any zoom.");
         viewP.setTooltip("The pitch view: the notes in the sound as a piano roll. Drag a note to retune it.");
         display.onLayers = [this] { syncLayerUi(); }; for (auto* b : { &snapAllB, &fFollow, &fKeep, &layoutB, &frontB }) b->raw = true; snapAllB.raw = false;
         loop.setTooltip("Repeat playback."); play.setTooltip("Play the selection, or from the cursor (Space)."); stop.setTooltip("Stop (Space or Esc)."); rec.setTooltip("Record (R). Press again to stop and keep the take."); recOpt.setTooltip("Record options: start mode and what a take does.");
@@ -700,7 +713,7 @@ struct MeowEditor::Impl
         }
         int id = 1; for (int v : { -24, -12, -6, -3, 3, 6, 12 }) ampCb.addItem("Amp " + String(v > 0 ? "+" : "") + String(v) + " dB", id++);
         id = 1; for (int v : { -36, -24, -18, -12, -6 }) penCb.addItem("Pen " + String(v) + " dB", id++);
-        brushCb.addItem("Brush small", 1); brushCb.addItem("Brush medium", 2); brushCb.addItem("Brush large", 3);
+        brushCb.addItem("Small", 1); brushCb.addItem("Medium", 2); brushCb.addItem("Large", 3);
         ampCb.setSelectedId(6, juce::dontSendNotification); penCb.setSelectedId(3, juce::dontSendNotification); brushCb.setSelectedId(2, juce::dontSendNotification);
         ampCb.setTooltip("Level change the Amp tool applies to the box."); penCb.setTooltip("Level of the tone the Pencil draws."); brushCb.setTooltip("Size of the Eraser brush.");
         const int ampV[] = { -24, -12, -6, -3, 3, 6, 12 }, penV[] = { -36, -24, -18, -12, -6 }, brV[] = { 6, 12, 24 };
@@ -786,7 +799,7 @@ struct MeowEditor::Impl
 
     // ---- actions ----
     void setSpectral(bool s) { display.showOnly(s ? Display::LSpec : Display::LWave); }
-    void toggleWPen() { display.wpen = !display.wpen; if (display.wpen && !display.lay[Display::LWave]) display.toggleLayer(Display::LWave); vPen.setToggleState(display.wpen, juce::dontSendNotification); display.repaint(); if (display.wpen) { status = "Waveform pencil on. Zoom in until you can see single samples, then drag over the wave."; statusAge = 0; } }
+    void toggleWPen() { display.wpen = !display.wpen; if (display.wpen && !display.lay[Display::LWave]) display.toggleLayer(Display::LWave); vPen.setToggleState(display.wpen, juce::dontSendNotification); display.repaint(); if (display.wpen) { status = "Waveform pencil on. Zoom in to draw, or hold Shift and drag to erase."; statusAge = 0; } }
     bool specShown() const { const auto v = display.vis(); return std::find(v.begin(), v.end(), (int) Display::LSpec) != v.end(); }
     bool pitchShown() const { const auto v = display.vis(); return std::find(v.begin(), v.end(), (int) Display::LPitch) != v.end(); }
     void syncLayerUi()

@@ -7,14 +7,12 @@ Windows
   (C:\Program Files\Studio 87\Meowcorder, the folder the installer asks about).
   Windows may show a blue "unknown publisher" screen because the installer is not signed:
   click "More info", then "Run anyway".
-  Remove: Settings > Apps > Meowcorder > Uninstall. It asks if you also want your saved presets deleted
-  (default is No, so they stay).
+  Remove: Settings > Apps > Meowcorder > Uninstall. It removes everything the installer added.
 
 macOS
   Open macos\Meowcorder-macOS.pkg. It installs the VST3 plugin, the standalone app, the manual and "Uninstall Meowcorder".
   The installer is not notarized: if macOS blocks it, open System Settings > Privacy & Security and choose "Open Anyway".
-  Remove: open "Uninstall Meowcorder" in the Applications folder. It asks if you also want your saved presets deleted
-  (default is Keep).
+  Remove: open "Uninstall Meowcorder" in the Applications folder. It removes everything the installer added.
 
 Linux, DAW installed as a Flatpak (for example Bitwig, Reaper or Ardour from Flathub)
   1. Your DAW should use the org.freedesktop.Platform 25.08 runtime (check with: flatpak info <DAW id>, Runtime line).

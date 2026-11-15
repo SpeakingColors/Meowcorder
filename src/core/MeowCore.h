@@ -246,6 +246,22 @@ inline Spectrogram spectrogram (const Audio& a, size_t from, size_t to, int fftS
     return s;
 }
 
+// `cols` evenly spaced frames across [from, to), each a window of fftSize centred on its column (zero outside the sound). Same scale as spectrogram().
+inline Spectrogram spectrogramCols (const Audio& a, double from, double to, int cols, int fftSize)
+{
+    Spectrogram s; s.bins = fftSize / 2 + 1; s.frames = std::max (1, cols); s.db.assign ((size_t) s.frames * (size_t) s.bins, -120.f); const long long n = (long long) a.frames();
+    std::vector<double> w ((size_t) fftSize); double ws = 0; for (int i = 0; i < fftSize; ++i) { w[(size_t) i] = 0.5 - 0.5 * std::cos (2 * 3.14159265358979323846 * i / fftSize); ws += w[(size_t) i]; }
+    std::vector<std::complex<double>> buf ((size_t) fftSize);
+    for (int f = 0; f < s.frames; ++f)
+    {
+        const double centre = from + ((double) f + 0.5) / (double) s.frames * (to - from); const long long st = (long long) std::llround (centre - fftSize / 2.0);
+        for (int i = 0; i < fftSize; ++i) { const long long k = st + i; const double m = (k >= 0 && k < n) ? 0.5 * ((double) a.ch[0][(size_t) k] + (double) a.ch[1][(size_t) k]) : 0.0; buf[(size_t) i] = m * w[(size_t) i]; }
+        fft (buf);
+        for (int b = 0; b < s.bins; ++b) { const double mag = std::abs (buf[(size_t) b]) * 2.0 / ws; s.db[(size_t) f * (size_t) s.bins + (size_t) b] = (float) std::max (-120.0, 20.0 * std::log10 (std::max (1e-9, mag))); }
+    }
+    return s;
+}
+
 struct Peaks { std::vector<float> mn, mx; };
 // Min and max over both channels for `cols` columns across [from, to).
 inline Peaks peakOverview (const Audio& a, size_t from, size_t to, size_t cols)
