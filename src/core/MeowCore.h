@@ -269,6 +269,30 @@ inline std::vector<size_t> detectTransients (const Audio& a, float sens)
     return out;
 }
 
+// Tempo from the hits: autocorrelation of the onset curve, 60 to 200 bpm, leaning towards the usual 90 to 160. 0 when the sound is too short
+// or has no clear pulse. Same algorithm as detectBpm in docs/mockups/engine.js.
+inline float detectBpm (const Audio& a)
+{
+    const size_t hop = 256, F = a.frames() / hop; if (F < 90) return 0.f;
+    std::vector<double> e (F, 0.0), fl (F, 0.0);
+    for (size_t f = 0; f < F; ++f) { double s = 0; for (size_t i = 0; i < hop; ++i) { const double v = 0.5 * ((double) a.ch[0][f * hop + i] + (double) a.ch[1][f * hop + i]); s += v * v; } e[f] = std::sqrt (s / (double) hop); }
+    for (size_t f = 1; f < F; ++f) fl[f] = std::max (0.0, e[f] - e[f - 1]);
+    const double fps = a.sr / (double) hop; const size_t lo = (size_t) std::floor (fps * 60.0 / 200.0), hi = std::min ((size_t) std::ceil (fps * 60.0 / 60.0), F >> 1);
+    if (hi <= lo + 2 || lo < 2) return 0.f;
+    std::vector<double> ac (hi + 2, 0.0);
+    for (size_t lag = lo - 1; lag <= hi + 1; ++lag) { double s = 0; for (size_t i = 0; i + lag < F; ++i) s += fl[i] * fl[i + lag]; ac[lag] = s / (double) (F - lag); }
+    long best = -1; double bv = 0;
+    for (size_t lag = lo; lag <= hi; ++lag)
+    {
+        const double bpm = 60.0 * fps / (double) lag, w = std::exp (-0.5 * std::pow (std::log2 (bpm / 120.0) / 0.9, 2.0)), v = ac[lag] * w;
+        if (v > bv && ac[lag] >= ac[lag - 1] && ac[lag] >= ac[lag + 1]) { bv = v; best = (long) lag; }
+    }
+    if (best < 0 || bv <= 0) return 0.f;
+    double lag = (double) best; const double a0 = ac[(size_t) best - 1], b0 = ac[(size_t) best], c0 = ac[(size_t) best + 1], den = a0 - 2 * b0 + c0;
+    if (std::fabs (den) > 1e-20) lag += 0.5 * (a0 - c0) / den;
+    return (float) (std::round (600.0 * fps / lag) / 10.0);
+}
+
 // ---------- operations ----------
 inline void defaultParams (int op, float* p) { for (int i = 0; i < kMaxOpParams; ++i) p[i] = i < kOps[op].nParams ? kOps[op].params[i].def : 0.f; }
 
@@ -494,7 +518,7 @@ public:
 
     struct LastOp { int op = -1; float p[kMaxOpParams] = { 0 }; } last;
 
-    void load (const Audio& a) { audio = a; selA = selB = 0; cursor = 0; undoStack.clear(); redoStack.clear(); last = LastOp(); }
+    void load (const Audio& a) { audio = a; selA = selB = 0; cursor = 0; undoStack.clear(); redoStack.clear(); histLabels.clear(); histPos = 0; last = LastOp(); }
     bool hasSelection() const { return selB > selA; }
     void setSelection (size_t a, size_t b) { if (a > b) std::swap (a, b); selA = std::min (a, audio.frames()); selB = std::min (b, audio.frames()); cursor = selA; }
     void setCursor (size_t c) { cursor = std::min (c, audio.frames()); selA = selB = 0; }
@@ -504,7 +528,7 @@ public:
     bool apply (int op, const float* p)
     {
         if (op < 0 || op >= opCount || audio.frames() == 0) return false;
-        pushUndo(); const size_t s = rangeStart(), e = rangeEnd(); const size_t ne = applyOp (audio, op, s, e, p);
+        pushUndo (kOps[op].name); const size_t s = rangeStart(), e = rangeEnd(); const size_t ne = applyOp (audio, op, s, e, p);
         if (hasSelection()) selB = ne; else if (kOps[op].changesLength) { selA = selB = 0; }
         last.op = op; for (int i = 0; i < kMaxOpParams; ++i) last.p[i] = p[i]; return true;
     }
@@ -512,21 +536,26 @@ public:
 
     bool canUndo() const { return !undoStack.empty(); }
     bool canRedo() const { return !redoStack.empty(); }
-    void undo() { if (undoStack.empty()) return; redoStack.push_back (snap()); restore (undoStack.back()); undoStack.pop_back(); }
-    void redo() { if (redoStack.empty()) return; undoStack.push_back (snap()); restore (redoStack.back()); redoStack.pop_back(); }
+    void undo() { if (undoStack.empty()) return; redoStack.push_back (snap()); restore (undoStack.back()); undoStack.pop_back(); if (histPos > 0) --histPos; }
+    void redo() { if (redoStack.empty()) return; undoStack.push_back (snap()); restore (redoStack.back()); redoStack.pop_back(); if (histPos < histLabels.size()) ++histPos; }
+    // The history: one entry per change since the sound was loaded. Step 0 is the sound as loaded, step k the result of the k-th change.
+    size_t historySteps() const { return histLabels.size() + 1; }
+    size_t historyPos() const { return histPos; }
+    const char* historyLabel (size_t step) const { return step == 0 || step > histLabels.size() ? "Start" : histLabels[step - 1].c_str(); }
+    void jumpToStep (size_t step) { step = std::min (step, histLabels.size()); while (histPos > step && canUndo()) undo(); while (histPos < step && canRedo()) redo(); }
 
     void copy() { if (hasSelection()) clip = audio.slice (selA, selB); }
-    void cut() { if (!hasSelection()) return; clip = audio.slice (selA, selB); pushUndo(); audio.erase (selA, selB); cursor = selA; selB = selA; }
-    void deleteSelection() { if (!hasSelection()) return; pushUndo(); audio.erase (selA, selB); cursor = selA; selB = selA; }
-    void cropToSelection() { if (!hasSelection()) return; pushUndo(); audio = audio.slice (selA, selB); selA = 0; selB = audio.frames(); }
-    void paste() { if (clip.frames() == 0) return; pushUndo(); const size_t at = hasSelection() ? selA : std::min (cursor, audio.frames()); insert (at, clip); selA = at; selB = at + clip.frames(); }
-    void insertSilenceAtSelection (size_t n) { pushUndo(); const size_t at = rangeStart(); audio.insertSilence (at, n); selA = at; selB = at + n; }
+    void cut() { if (!hasSelection()) return; clip = audio.slice (selA, selB); pushUndo ("Cut"); audio.erase (selA, selB); cursor = selA; selB = selA; }
+    void deleteSelection() { if (!hasSelection()) return; pushUndo ("Delete"); audio.erase (selA, selB); cursor = selA; selB = selA; }
+    void cropToSelection() { if (!hasSelection()) return; pushUndo ("Crop"); audio = audio.slice (selA, selB); selA = 0; selB = audio.frames(); }
+    void paste() { if (clip.frames() == 0) return; pushUndo ("Paste"); const size_t at = hasSelection() ? selA : std::min (cursor, audio.frames()); insert (at, clip); selA = at; selB = at + clip.frames(); }
+    void insertSilenceAtSelection (size_t n) { pushUndo ("Insert silence"); const size_t at = rangeStart(); audio.insertSilence (at, n); selA = at; selB = at + n; }
     // Puts a recording into the sound. mode: 0 replace everything, 1 append at the end, 2 replace the selection (punch), 3 insert at the start of the selection.
     void takeRecording (const Audio& rec, int mode)
     {
         if (rec.frames() == 0) return;
         if (mode == 0 || audio.frames() == 0) { load (rec); return; }
-        pushUndo();
+        pushUndo (mode == 1 ? "Record (append)" : mode == 2 ? "Record (punch in)" : "Record (insert)");
         if (mode == 1) { const size_t at = audio.frames(); insert (at, rec); selA = at; selB = at + rec.frames(); }
         else if (mode == 2 && hasSelection()) { const size_t a = selA; audio.erase (selA, selB); insert (a, rec); selA = a; selB = a + rec.frames(); }
         else { const size_t at = rangeStart(); insert (at, rec); selA = at; selB = at + rec.frames(); }
@@ -547,14 +576,15 @@ public:
 
 private:
     struct Snap { Audio a; size_t sa, sb; };
-    std::vector<Snap> undoStack, redoStack; Audio clip; size_t limitBytes = 400u * 1024u * 1024u;
+    std::vector<Snap> undoStack, redoStack; std::vector<std::string> histLabels; size_t histPos = 0; Audio clip; size_t limitBytes = 400u * 1024u * 1024u;
     Snap snap() const { return { audio, selA, selB }; }
     void restore (const Snap& s) { audio = s.a; selA = s.sa; selB = s.sb; }
     void insert (size_t at, const Audio& x) { for (int c = 0; c < 2; ++c) audio.ch[c].insert (audio.ch[c].begin() + (std::ptrdiff_t) std::min (at, audio.frames()), x.ch[c].begin(), x.ch[c].end()); }
-    void pushUndo()
+    void pushUndo (const char* label)
     {
-        undoStack.push_back (snap()); redoStack.clear();
-        size_t bytes = 0; for (auto& s : undoStack) bytes += s.a.frames() * 8; while (undoStack.size() > 1 && bytes > limitBytes) { bytes -= undoStack.front().a.frames() * 8; undoStack.erase (undoStack.begin()); }
+        undoStack.push_back (snap()); redoStack.clear(); histLabels.resize (histPos); histLabels.push_back (label); histPos = histLabels.size();
+        size_t bytes = 0; for (auto& s : undoStack) bytes += s.a.frames() * 8;
+        while (undoStack.size() > 1 && bytes > limitBytes) { bytes -= undoStack.front().a.frames() * 8; undoStack.erase (undoStack.begin()); if (! histLabels.empty()) histLabels.erase (histLabels.begin()); if (histPos > 0) --histPos; }
     }
 };
 

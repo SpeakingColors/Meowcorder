@@ -15,9 +15,9 @@
 class MeowcorderProcessor : public juce::AudioProcessor, private juce::Thread
 {
 public:
-    enum StartMode { startNow = 0, startOnInput = 1 };
+    enum StartMode { startNow = 0, startOnInput = 1, startCountIn = 2 };
     enum TakeMode { takeReplace = 0, takeAppend = 1, takePunch = 2, takeInsert = 3 };   // same numbers as mc::Editor::takeRecording
-    enum RecState { recOff = 0, recArmed = 1, recRecording = 2 };
+    enum RecState { recOff = 0, recArmed = 1, recRecording = 2, recCountIn = 3 };
 
     MeowcorderProcessor();
     ~MeowcorderProcessor() override;
@@ -52,7 +52,8 @@ public:
     int exportBits = 24;                                  // 16, 24 or 32 (float)
     int takeMode = takeAppend;
     int uiScalePercent = 100;
-    int startSel = 1;                                     // 0 now, 1 on input, 2 count-in (not in this build)
+    int startSel = 1;                                     // 0 now, 1 on input, 2 count-in
+    bool monoTakes = false;                               // a new take is made mono (left plus right)
     uint64_t version = 1;                                 // bumped on every change of the sound, the display uses it to redraw
     juce::String soundName { "new sound, not saved" };
     bool dirty = false;
@@ -74,6 +75,7 @@ public:
     bool saveWavRange (const juce::File&, size_t a, size_t b, int bits) const;
     double hostSampleRate() const { return hostSr; }
     static void resampleTo (mc::Audio&, double newSr);
+    static void toMono (mc::Audio&);
 
     // ---- meters, written by the audio thread, read by the editor
     std::atomic<float> inPeak[2] { { 0.f }, { 0.f } }, outPeak[2] { { 0.f }, { 0.f } };
@@ -93,6 +95,8 @@ private:
     std::atomic<float>* pThreshold = nullptr; std::atomic<float>* pPreroll = nullptr; std::atomic<float>* pMonitor = nullptr; std::atomic<float>* pLoop = nullptr;
 
     juce::SpinLock snapLock; std::shared_ptr<const mc::Audio> snap; std::deque<std::shared_ptr<const mc::Audio>> keepAlive;
+    std::atomic<bool> countInActive { false }, countInArm { false }; std::atomic<double> countInPos { 0.0 }, countInTotal { 0.0 }, countInBeat { 0.0 };
+    std::atomic<float>* pTempo = nullptr;
     std::atomic<bool> playing { false }; std::atomic<double> playPos { 0.0 }, playStart { 0.0 }, playEnd { 0.0 };
     double hostSr = 48000.0; float liveAcc = 0.f; int liveCount = 0;
 

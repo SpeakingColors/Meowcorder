@@ -7,9 +7,9 @@ A free audio recorder and editor for Linux first (also Windows and macOS): recor
 ## Status
 Version 0.2 (first plugin build). The engine is done (pure C++, 619 passing checks) and the plugin now exists as VST3 and standalone, with the window ported from the mockup (`docs/mockups/Meowcorder.html`, open it in any browser to see the full design). Installers and a tested release are still to come, see [ROADMAP](ROADMAP.md) and the [manual](https://github.com/SpeakingColors/Meowcorder/blob/main/docs/Meowcorder_manual.pdf).
 
-What works in the plugin today: record from the track or input (start now or on input, pre-roll, grab the last seconds heard), waveform with selection and zoom, undo and redo, cut, copy, paste, delete, crop, snap to zero, all 24 operations with their settings, play and loop, open (WAV, AIFF, FLAC, OGG) and save as WAV (16, 24 or 32 bit float), drop a file on the window, resizable window.
+What works in the plugin today: record from the track or input (start now, on input or after a four click count-in, pre-roll, grab the last seconds heard, mono or stereo takes), waveform with selection and zoom, undo and redo with a history list to jump to any step, cut, copy, paste, delete, crop, snap to zero, all 24 operations with their settings, play and loop, open (WAV, AIFF, FLAC, OGG) and save as WAV (16, 24 or 32 bit float), drop a file on the window, resizable window.
 
-Not in this build yet (the buttons are there, greyed out): spectral and pitch views, warp, the history list, count-in click, tempo detection and host sync, the mono/stereo take switch, the pencil tools and the overlay and split views.
+Not in this build yet (the buttons are there, greyed out): spectral and pitch views, warp and host tempo sync, the pencil tools and the overlay and split views. The tempo of a sound is detected and shown.
 
 ## What the finished window does (mockup)
 - Its own Edison-style history: undo, redo, repeat the last operation (Ctrl+Shift+Z), and jump to any step. Separate from your DAW.
@@ -24,7 +24,7 @@ Not in this build yet (the buttons are there, greyed out): spectral and pitch vi
 
 ## What the engine does
 - Recorder that is always listening: immediate or threshold start, pre-roll (the sound just before you pressed record), capture of the last seconds without recording
-- Editor with selection, cursor, undo and redo, cut, copy, paste, delete, crop, snap to zero crossing, punch in, insert and append recordings
+- Editor with selection, cursor, undo and redo with a history list to jump to any step, cut, copy, paste, delete, crop, snap to zero crossing, punch in, insert and append recordings
 - 24 operations on the selection (or the whole sound): gain, normalize, fades, reverse, invert, DC remove, silence, make mono, balance, pitch and speed, bitcrusher, Drive (Drive, Transistor, Fuzz as in PurrOne), EQ, filter, delay, chorus, phaser, reverb, compressor, limiter, noise gate, trim silence, make loop
 - Repeat last operation
 - WAV in (8, 16, 24, 32 bit, float 32 and 64) and out (16, 24, 32 float)

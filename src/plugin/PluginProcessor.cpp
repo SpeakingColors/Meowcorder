@@ -27,6 +27,7 @@ MeowcorderProcessor::MeowcorderProcessor()
 {
     pThreshold = apvts.getRawParameterValue ("threshold"); pPreroll = apvts.getRawParameterValue ("preroll");
     pMonitor = apvts.getRawParameterValue ("monitor");     pLoop = apvts.getRawParameterValue ("loop");
+    pTempo = apvts.getRawParameterValue ("tempo");
     fifoL.assign ((size_t) fifo.getTotalSize(), 0.f); fifoR.assign ((size_t) fifo.getTotalSize(), 0.f);
     for (int o = 0; o < mc::opCount; ++o) mc::defaultParams (o, opParams[o]);
     for (auto& p : livePeaks) p.store (0.f);
@@ -87,6 +88,22 @@ void MeowcorderProcessor::processBlock (juce::AudioBuffer<float>& buf, juce::Mid
     // monitoring: what you hear while recording. Muted: only the playback is heard.
     if (pMonitor->load() < 0.5f) buf.clear();
 
+    // count-in: a click on every beat (4/4, the first one higher), heard whatever the monitor says
+    if (countInActive.load())
+    {
+        double pos = countInPos.load(); const double total = countInTotal.load(), beat = countInBeat.load(), clickLen = 0.03 * hostSr;
+        float* cL = buf.getWritePointer (0); float* cR = chans > 1 ? buf.getWritePointer (1) : nullptr;
+        for (int i = 0; i < n && pos < total; ++i, pos += 1.0)
+        {
+            const double within = std::fmod (pos, beat); if (within >= clickLen) continue;
+            const bool first = pos < beat; const float env = (float) std::pow (1.0 - within / clickLen, 2.0);
+            const float v = 0.35f * env * (float) std::sin (2.0 * juce::MathConstants<double>::pi * (first ? 1500.0 : 1000.0) * within / hostSr);
+            cL[i] += v; if (cR) cR[i] += v;
+        }
+        countInPos.store (pos);
+        if (pos >= total) { countInActive.store (false); countInArm.store (true); }
+    }
+
     if (playing.load())
     {
         std::shared_ptr<const mc::Audio> a;
@@ -122,13 +139,19 @@ void MeowcorderProcessor::drainFifo()
     if (n2 > 0) recorder.process (fifoL.data() + s2, fifoR.data() + s2, (size_t) n2);
     fifo.finishedRead (n1 + n2);
     recFramesA.store (recorder.recordedFrames());
-    recStateA.store (recorder.isRecording() ? recRecording : (recorder.isArmed() ? recArmed : recOff));
+    recStateA.store (countInActive.load() ? recCountIn : (recorder.isRecording() ? recRecording : (recorder.isArmed() ? recArmed : recOff)));
 }
 
 void MeowcorderProcessor::run()
 {
     while (! threadShouldExit())
     {
+        if (countInArm.exchange (false))
+        {
+            std::lock_guard<std::mutex> g (recMutex); drainFifo();
+            recorder.arm (mc::Recorder::Immediate, pThreshold->load(), 0.0);            // the count-in is over: record from this moment on
+            recFramesA.store (recorder.recordedFrames()); recStateA.store (recRecording);
+        }
         { std::lock_guard<std::mutex> g (recMutex); drainFifo(); }
         wait (4);
     }
@@ -151,6 +174,13 @@ void MeowcorderProcessor::audioChanged()
 bool MeowcorderProcessor::startRecording (StartMode m)
 {
     stopPlayback();
+    if (m == startCountIn)
+    {
+        const double beat = 60.0 / (double) std::max (20.f, pTempo->load()) * hostSr;
+        countInBeat.store (beat); countInTotal.store (4.0 * beat); countInPos.store (0.0); countInArm.store (false); countInActive.store (true);
+        recFramesA.store (0); recStateA.store (recCountIn);
+        return true;
+    }
     std::lock_guard<std::mutex> g (recMutex);
     drainFifo();
     recorder.arm (m == startNow ? mc::Recorder::Immediate : mc::Recorder::Threshold, pThreshold->load(), (double) pPreroll->load());
@@ -161,10 +191,11 @@ bool MeowcorderProcessor::startRecording (StartMode m)
 
 void MeowcorderProcessor::stopRecording()
 {
+    if (recStateA.load() == recCountIn) { cancelRecording(); return; }
     mc::Audio rec;
     { std::lock_guard<std::mutex> g (recMutex); drainFifo(); rec = recorder.stop(); recStateA.store (recOff); recFramesA.store (0); }
     if (rec.frames() == 0) return;
-    rec.sr = hostSr;
+    rec.sr = hostSr; if (monoTakes) toMono (rec);
     if (ed.audio.frames() > 0 && takeMode != takeReplace && std::fabs (ed.audio.sr - rec.sr) > 0.5) resampleTo (rec, ed.audio.sr);
     ed.takeRecording (rec, takeMode);
     audioChanged();
@@ -172,6 +203,7 @@ void MeowcorderProcessor::stopRecording()
 
 void MeowcorderProcessor::cancelRecording()
 {
+    countInActive.store (false); countInArm.store (false);
     std::lock_guard<std::mutex> g (recMutex); drainFifo(); (void) recorder.stop(); recStateA.store (recOff); recFramesA.store (0);
 }
 
@@ -180,7 +212,7 @@ bool MeowcorderProcessor::grabLastSeconds()
     mc::Audio a;
     { std::lock_guard<std::mutex> g (recMutex); drainFifo(); a = recorder.captureLast ((double) pPreroll->load() * 0.001); }
     if (a.frames() == 0) return false;
-    a.sr = hostSr;
+    a.sr = hostSr; if (monoTakes) toMono (a);
     if (ed.audio.frames() > 0 && takeMode != takeReplace && std::fabs (ed.audio.sr - a.sr) > 0.5) resampleTo (a, ed.audio.sr);
     ed.takeRecording (a, takeMode); audioChanged();
     return true;
@@ -197,6 +229,11 @@ void MeowcorderProcessor::play()
 }
 
 void MeowcorderProcessor::stopPlayback() { playing.store (false); }
+
+void MeowcorderProcessor::toMono (mc::Audio& a)
+{
+    for (size_t i = 0; i < a.frames(); ++i) a.ch[0][i] = a.ch[1][i] = 0.5f * (a.ch[0][i] + a.ch[1][i]);
+}
 
 void MeowcorderProcessor::resampleTo (mc::Audio& a, double newSr)
 {
@@ -241,7 +278,7 @@ bool MeowcorderProcessor::saveWav (const juce::File& f, int bits, juce::String& 
 void MeowcorderProcessor::getStateInformation (juce::MemoryBlock& d)
 {
     auto st = apvts.copyState();
-    st.setProperty ("exportBits", exportBits, nullptr); st.setProperty ("takeMode", takeMode, nullptr); st.setProperty ("uiScale", uiScalePercent, nullptr); st.setProperty ("startSel", startSel, nullptr);
+    st.setProperty ("exportBits", exportBits, nullptr); st.setProperty ("takeMode", takeMode, nullptr); st.setProperty ("uiScale", uiScalePercent, nullptr); st.setProperty ("startSel", startSel, nullptr); st.setProperty ("monoTakes", monoTakes, nullptr);
     st.setProperty ("version", 1, nullptr);
     if (auto xml = st.createXml()) copyXmlToBinary (*xml, d);
 }
@@ -255,7 +292,7 @@ void MeowcorderProcessor::setStateInformation (const void* data, int size)
     const int eb = (int) st.getProperty ("exportBits", 24); exportBits = (eb == 16 || eb == 24 || eb == 32) ? eb : 24;
     takeMode = juce::jlimit (0, 3, (int) st.getProperty ("takeMode", (int) takeAppend));
     uiScalePercent = juce::jlimit (50, 200, (int) st.getProperty ("uiScale", 100));
-    startSel = juce::jlimit (0, 1, (int) st.getProperty ("startSel", 1));
+    startSel = juce::jlimit (0, 2, (int) st.getProperty ("startSel", 1)); monoTakes = (bool) st.getProperty ("monoTakes", false);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new MeowcorderProcessor(); }

@@ -88,6 +88,26 @@ int main()
     CHECK (std::fabs (r.apvts.getRawParameterValue ("threshold")->load() - (-30.f)) < 0.2f); CHECK (r.exportBits == 16); CHECK (r.uiScalePercent == 125);
     r.setStateInformation ("garbage", 7); CHECK (r.exportBits == 16);
 
+    // 8. count-in: four clicks are heard, then recording starts by itself and records what comes in afterwards
+    setParam (p, "tempo", 240.f); setParam (p, "monitor", 0.f); p.takeMode = MeowcorderProcessor::takeReplace;           // 240 bpm: the count-in is 1 s
+    CHECK (p.startRecording (MeowcorderProcessor::startCountIn)); CHECK (p.recState() == MeowcorderProcessor::recCountIn);
+    {
+        juce::AudioBuffer<float> o (2, 480); juce::MidiBuffer mm; float e = 0;
+        for (int k = 0; k < 5; ++k) { o.clear(); p.processBlock (o, mm); e += o.getMagnitude (0, 480); }
+        CHECK (e > 0.1f);                                                                                                // the click is audible even with the monitor off
+    }
+    feed (p, 0.0f, 80);                                                                                                  // 0.8 s: still counting
+    CHECK (p.recState() == MeowcorderProcessor::recCountIn);
+    feed (p, 0.0f, 30);                                                                                                  // the count-in ends, recording starts
+    CHECK (p.recState() == MeowcorderProcessor::recRecording);
+    feed (p, 0.5f, 50); p.stopRecording();
+    CHECK (p.ed.audio.frames() > (size_t) (48000 * 0.4) && p.ed.audio.frames() < (size_t) (48000 * 0.9));                // only what came after the count-in
+    CHECK (p.startRecording (MeowcorderProcessor::startCountIn)); p.stopRecording(); CHECK (p.recState() == MeowcorderProcessor::recOff);   // stopping during the count-in cancels
+
+    // 9. mono takes: left plus right
+    { mc::Audio a; a.sr = 48000.0; a.resize (4); a.ch[0][0] = 0.5f; a.ch[1][0] = -0.1f; a.ch[0][1] = 1.f; a.ch[1][1] = 1.f; MeowcorderProcessor::toMono (a);
+      CHECK (std::fabs (a.ch[0][0] - 0.2f) < 1e-6f && a.ch[0][0] == a.ch[1][0] && std::fabs (a.ch[0][1] - 1.f) < 1e-6f); }
+
     if (! fails) std::puts ("meowcorder_plugin_test: all passed");
     return fails ? 1 : 0;
 }

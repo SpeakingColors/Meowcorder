@@ -191,7 +191,7 @@ public:
         g.setColour (kYellow.withAlpha (0.55f)); g.drawHorizontalLine ((int) ty, 0.f, (float) w); g.drawHorizontalLine ((int) ((float) h - ty), 0.f, (float) w);
         g.setColour (kLine); g.drawRect (getLocalBounds(), 1);
         g.setColour (kDim); g.setFont (labelFont (12.f));
-        g.drawText (rec ? "Recording " + fmtClock (proc.recordedSeconds(), 1) : proc.recState() == MeowcorderProcessor::recArmed ? "Waiting for sound above the threshold" : "Live input", 8, 0, w - 16, h, juce::Justification::centredLeft);
+        g.drawText (rec ? "Recording " + fmtClock (proc.recordedSeconds(), 1) : proc.recState() == MeowcorderProcessor::recCountIn ? "Count-in" : proc.recState() == MeowcorderProcessor::recArmed ? "Waiting for sound above the threshold" : "Live input", 8, 0, w - 16, h, juce::Justification::centredLeft);
     }
 private:
     MeowcorderProcessor& proc;
@@ -451,8 +451,7 @@ public:
         {
             auto b = std::make_unique<TextBtn> (segs[i].n, TextBtn::segment); b->setBounds (rc (segs[i].r)); auto* raw = b.get(); segBtns[i] = raw;
             b->onClick = [this, i] { p.startSel = i; refresh(); };
-            if (i == 2) { b->setActive (false); b->setTooltip (kSoon); }
-            else b->setTooltip (i == 0 ? "Recording starts the moment you press record." : "Recording waits until the sound passes the threshold.");
+            b->setTooltip (i == 0 ? "Recording starts the moment you press record." : i == 1 ? "Recording waits until the sound passes the threshold." : "Four clicks at the tempo of the Tempo knob, then recording starts.");
             addAndMakeVisible (*b); texts.push_back (std::move (b));
         }
         takeBtn = std::make_unique<TextBtn> ("take", TextBtn::take); takeBtn->setBounds (rc (layout::bTake)); takeBtn->onClick = [this] { showTakeMenu(); }; takeBtn->setTooltip ("What a new recording does to the sound. Click to change."); addAndMakeVisible (*takeBtn);
@@ -460,7 +459,7 @@ public:
         // knobs
         const struct { const char* id; layout::R k; layout::R v; const char* tip; } kn[] = {
             { "threshold", layout::kThreshold, layout::vThreshold, "Threshold: level that starts a recording when Start is on Threshold. -80.0 dB to 0.0 dB, default -40.0 dB. Double click resets." },
-            { "tempo", layout::kTempo, layout::vTempo, "Tempo: for the count-in click (count-in is not in this build yet). 40 bpm to 240 bpm, default 120 bpm." },
+            { "tempo", layout::kTempo, layout::vTempo, "Tempo: speed of the count-in click, 4/4. 40 bpm to 240 bpm, default 120 bpm." },
             { "preroll", layout::kPreroll, layout::vPreroll, "Pre-roll: how much sound from before the start is included in the recording. 0.0 ms to 3.00 s, default 200 ms." } };
         for (int i = 0; i < 3; ++i)
         {
@@ -480,15 +479,15 @@ public:
 
         // toolbar
         add ("bNew", layout::bNew, [this] { doNew(); }); add ("bOpen", layout::bOpen, [this] { doOpen(); }); add ("bSave", layout::bSave, [this] { doSave(); });
-        add ("bUndo", layout::bUndo, [this] { doUndo(); }); add ("bRedo", layout::bRedo, [this] { doRedo(); }); add ("bHist", layout::bHist, [] {}); byKey["bHist"]->setActive (false);
+        add ("bUndo", layout::bUndo, [this] { doUndo(); }); add ("bRedo", layout::bRedo, [this] { doRedo(); }); add ("bHist", layout::bHist, [this] { showHistory(); });
         add ("bCut", layout::bCut, [this] { doCut(); }); add ("bCopy", layout::bCopy, [this] { doCopy(); }); add ("bPaste", layout::bPaste, [this] { doPaste(); });
         add ("bDel", layout::bDel, [this] { doDelete(); }); add ("bCrop", layout::bCrop, [this] { doCrop(); });
         add ("bAll", layout::bAll, [this] { doSelectAll(); }); add ("bSnap", layout::bSnap, [this] { doSnap(); });
         add ("bZin", layout::bZin, [this] { wave.zoom (0.5, centreFrame()); }); add ("bZout", layout::bZout, [this] { wave.zoom (2.0, centreFrame()); });
         add ("bFit", layout::bFit, [this] { wave.fit(); }); add ("bSel", layout::bSel, [this] { wave.zoomToSelection(); });
         add ("bRepeat", layout::bRepeat, [this] { doRepeat(); }); add ("bGrab", layout::bGrab, [this] { doGrab(); });
-        add ("bMono", layout::bMono, [] {}); add ("bInput", layout::bInput, [] {}); add ("bMon", layout::bMon, [this] { toggleParam ("monitor"); }, kGreen); add ("bSpec", layout::bSpec, [] {});
-        for (auto* k : { "bMono", "bInput", "bSpec" }) { byKey[k]->setActive (false); byKey[k]->setTooltip (juce::String (byKey[k]->getTooltip()).upToFirstOccurrenceOf (":", false, false) + ": " + kSoon); }
+        add ("bMono", layout::bMono, [this] { p.monoTakes = ! p.monoTakes; refresh(); }); add ("bInput", layout::bInput, [] {}); add ("bMon", layout::bMon, [this] { toggleParam ("monitor"); }, kGreen); add ("bSpec", layout::bSpec, [] {});
+        for (auto* k : { "bInput", "bSpec" }) { byKey[k]->setActive (false); byKey[k]->setTooltip (juce::String (byKey[k]->getTooltip()).upToFirstOccurrenceOf (":", false, false) + ": " + kSoon); }
         add ("vComb", layout::vComb, [] {}); add ("vPen", layout::vPen, [] {}); byKey["vComb"]->setActive (false); byKey["vPen"]->setActive (false);
         {
             const struct { const char* n; layout::R r; bool on; } tabs[] = { { "Waveform", layout::tWave, true }, { "Spectral", { 161, 310, 61, 21 }, false }, { "Pitch", { 221, 310, 47, 21 }, false } };
@@ -501,7 +500,7 @@ public:
             auto b = std::make_unique<TextBtn> (c.n, TextBtn::chip); b->setBounds (rc (c.r)); chips[c.n] = b.get(); const int kind = c.kind;
             if (kind == 1) { b->setTooltip ("File format of Save: 16 bit, 24 bit or 32 bit float. Click to change."); b->onClick = [this] { showBitsMenu(); }; }
             else if (kind == 2) { b->setTooltip ("How positions are shown: time, seconds or samples. Click to change."); b->onClick = [this] { showUnitMenu(); }; }
-            else { b->setActive (false); b->setTooltip (std::string (c.n) == "ch" || std::string (c.n) == "sr" ? "Channels and sample rate of this sound." : kSoon); }
+            else { b->setActive (false); b->setTooltip (std::string (c.n) == "ch" || std::string (c.n) == "sr" ? "Channels and sample rate of this sound." : std::string (c.n) == "bpm" ? "Tempo found in the hits of this sound." : kSoon); }
             addAndMakeVisible (*b); texts.push_back (std::move (b));
         }
         // header: UI size
@@ -570,7 +569,7 @@ public:
     void doStop() { p.stopPlayback(); if (p.recState() != MeowcorderProcessor::recOff) { p.stopRecording(); wave.audioReplaced(); changed(); } refresh(); }
     void doRecord()
     {
-        if (p.recState() == MeowcorderProcessor::recOff) p.startRecording (p.startSel == 0 ? MeowcorderProcessor::startNow : MeowcorderProcessor::startOnInput);
+        if (p.recState() == MeowcorderProcessor::recOff) p.startRecording (p.startSel == 0 ? MeowcorderProcessor::startNow : p.startSel == 1 ? MeowcorderProcessor::startOnInput : MeowcorderProcessor::startCountIn);
         else { p.stopRecording(); wave.audioReplaced(); changed(); }
         refresh();
     }
@@ -621,6 +620,16 @@ public:
         const char* names[] = { "Replace everything", "Append at the end", "Punch in over the selection", "Insert at the selection" };
         for (int i = 0; i < 4; ++i) { juce::PopupMenu::Item it (names[i]); it.setTicked (p.takeMode == i); it.setAction ([this, i] { p.takeMode = i; refresh(); }); m.addItem (it); }
     }
+    void showHistory()
+    {
+        juce::PopupMenu m; const size_t steps = p.ed.historySteps();
+        for (size_t k = steps; k-- > 0;)
+        {
+            juce::PopupMenu::Item it (juce::String ((int) k) + "  " + (k == 0 ? "Start" : p.ed.historyLabel (k))); it.setTicked (k == p.ed.historyPos());
+            it.setAction ([this, k] { p.ed.jumpToStep (k); changed(); }); m.addItem (it);
+        }
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (byKey["bHist"]).withMaximumNumColumns (1));
+    }
     void showTakeMenu() { juce::PopupMenu m; showTakeItems (m); m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (takeBtn.get())); }
     void showBitsMenu() { juce::PopupMenu m; for (int b : { 16, 24, 32 }) { juce::PopupMenu::Item it (b == 32 ? "32 bit float" : juce::String (b) + " bit"); it.setTicked (p.exportBits == b); it.setAction ([this, b] { p.exportBits = b; refresh(); }); m.addItem (it); } m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (chips["bits"])); }
     void showUnitMenu() { juce::PopupMenu m; const char* n[] = { "Time", "Seconds", "Samples" }; for (int i = 0; i < 3; ++i) { juce::PopupMenu::Item it (n[i]); it.setTicked (wave.unit == i); it.setAction ([this, i] { wave.unit = i; refresh(); ruler.repaint(); }); m.addItem (it); } m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (chips["unit"])); }
@@ -667,13 +676,13 @@ private:
         if (! ready) return;
         const bool rec = p.recState() != MeowcorderProcessor::recOff, has = p.ed.audio.frames() > 0, sel = p.ed.hasSelection();
         auto on = [&] (const char* k, bool v) { if (byKey.count (k)) byKey[k]->setOn (v); }; auto act = [&] (const char* k, bool v) { if (byKey.count (k)) byKey[k]->setActive (v); };
-        on ("bRec", rec); on ("bPlay", p.isPlaying()); on ("bLoop", p.apvts.getRawParameterValue ("loop")->load() > 0.5f); on ("bMon", p.apvts.getRawParameterValue ("monitor")->load() > 0.5f); on ("bSnap", wave.snapZero);
+        on ("bRec", rec); on ("bPlay", p.isPlaying()); on ("bLoop", p.apvts.getRawParameterValue ("loop")->load() > 0.5f); on ("bMon", p.apvts.getRawParameterValue ("monitor")->load() > 0.5f); on ("bSnap", wave.snapZero); on ("bMono", p.monoTakes); act ("bHist", p.ed.historySteps() > 1);
         act ("bUndo", p.ed.canUndo()); act ("bRedo", p.ed.canRedo()); act ("bCut", sel); act ("bCopy", sel); act ("bPaste", p.ed.clipboard().frames() > 0); act ("bDel", sel); act ("bCrop", sel);
         act ("bAll", has); act ("bZin", has); act ("bZout", has); act ("bFit", has); act ("bSel", sel); act ("bRepeat", p.ed.last.op >= 0); act ("bSave", has); act ("bPlay", has);
         for (int i = 0; i < 3; ++i) segBtns[i]->setOn (p.startSel == i);
         const char* takes[] = { "Replace", "Append", "Punch in", "Insert" }; takeBtn->label = takes[juce::jlimit (0, 3, p.takeMode)]; takeBtn->repaint();
         chips["ch"]->label = "Stereo"; chips["sr"]->label = juce::String (p.ed.audio.sr / 1000.0, p.ed.audio.sr == 44100.0 ? 1 : 0) + " kHz"; chips["bits"]->label = p.exportBits == 32 ? "32 bit float" : juce::String (p.exportBits) + " bit";
-        chips["unit"]->label = wave.unit == 0 ? "Time" : wave.unit == 1 ? "Seconds" : "Samples"; chips["bpm"]->label = juce::String (p.apvts.getRawParameterValue ("tempo")->load(), 1) + " bpm"; chips["sync"]->label = "Free"; chips["warp"]->label = "Warp >";
+        chips["unit"]->label = wave.unit == 0 ? "Time" : wave.unit == 1 ? "Seconds" : "Samples"; if (bpmKey != p.version) { bpmKey = p.version; bpmValue = mc::detectBpm (p.ed.audio); } chips["bpm"]->label = bpmValue > 0.f ? juce::String (bpmValue, 1) + " bpm" : juce::String ("no tempo"); chips["sync"]->label = "Free"; chips["warp"]->label = "Warp >";
         chips["scale"]->label = juce::String (p.uiScalePercent) + "%"; for (auto& kv : chips) kv.second->repaint();
         meters.thresholdDb = live.thresholdDb = p.apvts.getRawParameterValue ("threshold")->load(); meters.repaint(); live.repaint();
         if (p.isPlaying() || force) wave.repaint();
@@ -687,7 +696,7 @@ private:
     }
     static void setBoundsOf (juce::Component& c, int x, int y, int w, int h) { c.setBounds (x, y, w, h); }
 
-    bool ready = false;
+    bool ready = false; uint64_t bpmKey = 0; float bpmValue = 0.f;
     MeowcorderEditor& editor; MeowcorderProcessor& p;
     WaveView wave; Meters meters; LiveStrip live; Ruler ruler; Overview overview;
     std::vector<std::unique_ptr<IconButton>> icons; std::vector<std::unique_ptr<TextBtn>> texts; std::map<juce::String, IconButton*> byKey; std::map<juce::String, TextBtn*> chips;

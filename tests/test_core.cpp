@@ -190,8 +190,37 @@ static void testAudio()
     a.erase (n, 5 * n); CHECK (a.frames() == n);
 }
 
+static void testHistoryAndTempo()
+{
+    // history: every change is a step, the list can be walked, a new change after going back drops the later steps
+    Editor ed; ed.load (sine (440, 0.5f));
+    CHECK (ed.historySteps() == 1 && ed.historyPos() == 0);
+    float g[kMaxOpParams]; defaultParams (opGain, g); g[0] = -6.f;
+    ed.apply (opGain, g); ed.setSelection (1000, 5000); ed.cut(); ed.paste();
+    CHECK (ed.historySteps() == 4 && ed.historyPos() == 3);
+    CHECK (std::string (ed.historyLabel (1)) == "Gain" && std::string (ed.historyLabel (2)) == "Cut" && std::string (ed.historyLabel (3)) == "Paste");
+    const size_t full = ed.audio.frames();
+    ed.jumpToStep (1); CHECK (ed.historyPos() == 1 && ed.audio.frames() > full - 5000 && ed.canRedo());
+    ed.jumpToStep (0); CHECK (ed.historyPos() == 0 && ed.audio.peak (0, ed.audio.frames()) > 0.45f);          // back to the loaded sound, not quieter
+    ed.jumpToStep (3); CHECK (ed.historyPos() == 3 && ed.audio.frames() == full);
+    ed.jumpToStep (1); defaultParams (opReverse, g); ed.apply (opReverse, g);
+    CHECK (ed.historySteps() == 3 && std::string (ed.historyLabel (2)) == "Reverse" && ! ed.canRedo());                // a new change drops the old future
+    ed.undo(); CHECK (ed.historyPos() == 1);
+    ed.load (sine (440, 0.1f)); CHECK (ed.historySteps() == 1);
+
+    // tempo: a kick every half second is 120 bpm; too short or silent has none
+    Audio dr; dr.sr = 48000.0; dr.resize (48000 * 4);
+    for (int b = 0; b < 8; ++b) for (int i = 0; i < 12000; ++i) dr.ch[0][(size_t) (b * 24000 + i)] = dr.ch[1][(size_t) (b * 24000 + i)] = std::exp (-(float) i / 2500.f) * std::sin (2.f * 3.14159265f * 60.f * (float) i / 48000.f);
+    CHECK (near (detectBpm (dr), 120.0, 1.0));
+    CHECK (detectBpm (sine (100, 0.3f)) == 0.f);
+    Audio silent; silent.sr = 48000.0; silent.resize (48000 * 4); CHECK (detectBpm (silent) == 0.f);
+    Audio dr2; dr2.sr = 48000.0; dr2.resize (48000 * 4);                                                              // 90 bpm: a hit every 2/3 s
+    for (int b = 0; b < 6; ++b) for (int i = 0; i < 8000; ++i) { const size_t k = (size_t) (b * 32000 + i); dr2.ch[0][k] = dr2.ch[1][k] = std::exp (-(float) i / 1800.f) * std::sin (2.f * 3.14159265f * 70.f * (float) i / 48000.f); }
+    CHECK (near (detectBpm (dr2), 90.0, 1.5));
+}
+
 int main()
 {
-    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis();
+    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }
