@@ -4,11 +4,11 @@ Meowcorder has its own history of steps, separate from your DAW. You can undo, r
 This manual describes the interface as designed in the interactive mockup. The plugin window is built from that mockup, with the same layout, controls and info bubbles.
 
 ## Quick start
-- Press Audio (top right) to start listening. The strip above the display shows the last 3 seconds of input, and the meters on the right show the level.
+- Press Audio (top right) to start listening. The speaker (Monitor) button is off at first, so you only hear what Play plays; turn it on to hear the input. The strip above the display shows the last 3 seconds of input, and the meters on the right show the level.
 - Choose how a recording starts with the Now, On input and Count-in buttons, then press the pink record button. Press it again to stop.
 - Drag over the waveform to select a part. Operations, cut, copy and paste work on the selection. With nothing selected they work on the whole sound.
 - Click an operation (the colour grid at the top right) to open its settings, then press Apply. Double click an operation to apply it at once with its last settings.
-- Press R to repeat the last operation, Ctrl+Z to undo, and Ctrl+Shift+Z to redo, or to apply the last action again when there is nothing to redo.
+- Esc stops playback or recording. Press R to repeat the last operation, Ctrl+Z to undo, and Ctrl+Shift+Z to redo, or to apply the last action again when there is nothing to redo.
 - Hover any control for one second to see what it does.
 
 ## Recording
@@ -33,12 +33,12 @@ This manual describes the interface as designed in the interactive mockup. The p
 ## Views
 - Three views: Waveform, Spectral and Pitch. By default you see one at a time, and the one you see is the one your tools work on.
 - The layers button shows several together. Overlay puts them on top of each other, Split stacks them. In front says which view gets your edits. The others follow live: remove the low end in the spectral view and the waveform below it gets thinner at that spot.
-- Spectral view: frequency goes up, 20 Hz at the bottom and a log scale, time goes right, colour is level. Tools: Mouse, Selector, Scissors, Cutter, Eraser, Copy, Paste, Amp and Pencil. The Eraser works while you paint.
+- Spectral view: frequency goes up, 20 Hz at the bottom and a log scale, time goes right, colour is level. Tools: Mouse, Selector, Scissors, Cutter, Eraser, Copy, Paste, Amp and Pencil. The Eraser works while you paint, and only the small square under the brush changes. Cutter and Eraser filter out exactly the band you drew, and only in the time you drew; the picture below 100 Hz is drawn in finer steps so a small edit there shows where it is.
 - Pitch view: a piano roll of the notes Meowcorder found. Drag a note up or down to change its pitch, double click a note to snap it to the nearest semitone, or use Snap notes to semitones for all of them. Choose whether the formants follow the pitch or are kept.
 
 ## Pencils
 - Spectral pencil: pick Pencil in the spectral tools and drag forward in time. A pure tone follows your pen and is added to the sound at the Pen level (-36 to -6 dB). A single click adds a short beep. The waveform updates while you draw.
-- Waveform pencil: press Shift+Q or the pencil button in the view bar. It zooms in to single samples. Drag over the wave to draw it. In a stereo sound the lane under the pen is the side that changes. It only draws when you can see single samples; zoom in if it says so.
+- Waveform pencil: press Shift+Q or the pencil button in the view bar. It zooms in to single samples. Drag over the wave to draw it. In a stereo sound the lane under the pen is the side that changes. It only draws when you can see single samples; zoom in if it says so. Hold Shift while dragging to erase instead: the wave under the pen goes silent, at any zoom, and the other views follow.
 - Each stroke is one step in the history, so Ctrl+Z takes it back.
 
 ## Timing and warp
@@ -58,12 +58,12 @@ This manual describes the interface as designed in the interactive mockup. The p
 - Shortcuts work while Meowcorder has focus. Your DAW may keep some keys for itself; every action is also in the menus.
 
 ## Install
-Installers are not built yet; they come with the first plugin release (Windows installer, macOS package, Linux Flatpak). Until then the interactive mockup runs in any browser: open docs/mockups/Meowcorder.html. Everything is made inside the page and nothing is sent anywhere.
+The download has an installer for each system (Windows installer, macOS package, Linux Flatpak or plain VST3 folder) and INSTALL.txt with the steps and how to remove it. Everything is bundled, nothing is fetched while installing or running, and nothing is sent anywhere.
 
 ## Under the hood
-- The editing engine is plain C++17, tested by 619 checks. The mockup uses a JavaScript copy of it, and a parity test checks that all 24 operations give the same result in both.
-- Spectral edits use a Hann window of 2048 samples with a hop of 512. The spectral pencil adds a sine wave with 3 ms fades at each end.
-- Warp, pitch shifting, tempo detection, note detection, rate conversion and bit depth reduction are JavaScript in the mockup for now (28 checks plus the pencil checks) and move to C++ with the plugin.
+- The editing engine is plain C++17, tested by about 5500 checks. The mockup uses a JavaScript copy of it, and a parity test checks that all 24 operations give the same result in both.
+- Cutter and Eraser filter the box's band with a long FFT sized to the box (the box's own time span, short fades at its edges). Amp and Copy use a Hann window that adapts to the box size, with a hop of a quarter of the window. The spectral picture uses a 1024 window, 4096 below 900 Hz and 16384 below 200 Hz. The spectral pencil adds a sine wave with 3 ms fades at each end.
+- Warp, pitch shifting, tempo detection, note detection, rate conversion and bit depth reduction are in the same C++ engine as the plugin, and the mockup keeps a JavaScript copy of them.
 - Warp preview renders the sound first, so a long sound may pause for a moment.
 - Files: WAV in at 8, 16, 24 and 32 bit (integer and float), WAV out at 8, 16, 24 and 32 bit float.
 - Meowcorder collects nothing and makes no network calls.

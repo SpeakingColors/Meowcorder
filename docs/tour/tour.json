@@ -318,7 +318,7 @@
      "key": "M"
     },
     {
-     "name": "Monitoring the input",
+     "name": "Input muted",
      "desc": "Lets you hear what comes in while you record. Mute it when the sound already plays somewhere else.",
      "key": "Alt+M"
     },
@@ -412,7 +412,7 @@
     },
     {
      "name": "Waveform pencil",
-     "desc": "Draw the wave by hand. Zoom in until you can see single samples, then drag over the wave to set them. Shift+Q turns it on or off.",
+     "desc": "Draw the wave by hand. Zoom in until you can see single samples, then drag over the wave to set them. Hold Shift while dragging to erase: the wave under the pen goes silent, at any zoom. Shift+Q turns it on or off.",
      "key": "Shift+Q"
     },
     {
