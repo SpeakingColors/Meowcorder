@@ -27,6 +27,7 @@ This manual describes the interface as designed in the interactive mockup. The p
 
 ## Operations
 - 24 operations: gain, normalize, fade in and out, reverse, invert, DC remove, silence, make mono, balance, pitch and speed, bitcrusher, Drive, EQ, filter, delay, chorus, phaser, reverb, compressor, limiter, noise gate, trim silence, make loop.
+- Drive runs at four times the sample rate (a 193 tap filter, no delay), so its harmonics do not fold back as harsh grit. Measured on a 5 kHz tone at full Drive: folded harmonics sit more than 100 dB under the tone, against about 17 dB without it. The price is time: about 4 seconds per minute of stereo sound in the plugin.
 - Each one opens a popup with its knobs, a Mix knob for how much of the effect is added, and an Apply to switch: Selection (the default) or Whole sound.
 - Preview plays the result without changing the sound. Apply makes the change and adds a step to the history.
 

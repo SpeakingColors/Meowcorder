@@ -152,6 +152,62 @@ struct Colour
     }
 };
 
+// 4x oversampling for nonlinear stages (Drive): Kaiser windowed sinc, 193 taps, passband to 0.45 of the sample rate, about 75 dB stopband.
+// Same maths as oversampleRun in docs/mockups/engine.js. Zero delay (centred filter). Neighbours outside [s, e) feed the filters but are not changed.
+struct Oversampler
+{
+    static constexpr int L = 4, HH = 24, H = HH * L, N = 2 * H + 1;
+    static const std::vector<double>& kernel()
+    {
+        static const std::vector<double> k = []
+        {
+            std::vector<double> h ((size_t) N); const double pi = 3.14159265358979, fc = 0.45 / L, beta = 8.0;
+            auto i0 = [] (double x) { double s = 1, t = 1; for (int k2 = 1; k2 < 40; ++k2) { t *= (x / (2 * k2)) * (x / (2 * k2)); s += t; } return s; };
+            const double ib = i0 (beta); double sum = 0;
+            for (int m = 0; m < N; ++m)
+            {
+                const double d = m - H, w = i0 (beta * std::sqrt (std::max (0.0, 1 - (d / H) * (d / H)))) / ib, sc = d == 0 ? 1.0 : std::sin (2 * pi * fc * d) / (2 * pi * fc * d);
+                h[(size_t) m] = 2 * fc * sc * w; sum += h[(size_t) m];
+            }
+            for (auto& v : h) v /= sum;
+            return h;
+        }();
+        return k;
+    }
+    // Polyphase upsampling and a symmetric downsampling filter, no bounds checks in the inner loops (the input is copied with zero padding first).
+    template <class Fn>
+    static void run (std::vector<float>& x, size_t s, size_t e, Fn fn)
+    {
+        const auto& h = kernel(); constexpr int T = 2 * HH + 1; const long n = (long) x.size(); constexpr long B = 8192;
+        static const std::vector<float> poly = [&]
+        {
+            std::vector<float> t ((size_t) (L * T)); for (int p = 0; p < L; ++p) for (int k = 0; k < T; ++k) t[(size_t) (p * T + k)] = p + k * L < N ? (float) h[(size_t) (p + k * L)] : 0.f;
+            return t;
+        }();
+        static const std::vector<float> hf = [&] { std::vector<float> t ((size_t) N); for (int m = 0; m < N; ++m) t[(size_t) m] = (float) h[(size_t) m]; return t; }();
+        std::vector<float> out (e - s), yb ((size_t) ((B + 2 * HH) * L)), xp ((size_t) (B + 4 * HH));
+        for (long b0 = (long) s; b0 < (long) e; b0 += B)
+        {
+            const long b1 = std::min ((long) e, b0 + B), j0 = b0 - HH, base = b0 - 2 * HH, cnt = b1 - b0 + 2 * HH;
+            for (long q = 0; q < b1 - b0 + 4 * HH; ++q) { const long g = base + q; xp[(size_t) q] = g >= 0 && g < n ? x[(size_t) g] : 0.f; }
+            for (long jj = 0; jj < cnt; ++jj)
+                for (int p = 0; p < L; ++p)
+                {
+                    const float* t = &poly[(size_t) (p * T)]; const float* xs = &xp[(size_t) (jj + 2 * HH)]; float u = 0;
+                    for (int k = 0; k < T; ++k) u += xs[-k] * t[k];
+                    yb[(size_t) (jj * L + p)] = fn (u * (float) L);
+                }
+            for (long i = b0; i < b1; ++i)
+            {
+                const float* y = &yb[(size_t) ((i - j0) * L)]; float acc = hf[(size_t) H] * y[0];
+                for (int m = 1; m <= H; ++m) acc += hf[(size_t) (H + m)] * (y[m] + y[-m]);
+                out[(size_t) (i - (long) s)] = acc;
+            }
+        }
+        for (size_t i = s; i < e; ++i) x[i] = out[i - s];
+    }
+};
+
 // ---------- WAV ----------
 inline void put16 (std::vector<uint8_t>& o, uint32_t v) { o.push_back ((uint8_t) (v & 255)); o.push_back ((uint8_t) ((v >> 8) & 255)); }
 inline void put32 (std::vector<uint8_t>& o, uint32_t v) { put16 (o, v & 0xffff); put16 (o, v >> 16); }
@@ -364,7 +420,7 @@ inline size_t applyOp (Audio& a, int op, size_t s, size_t e, const float* p)
         case opDrive:
         {
             const float d = p[0] * 0.01f, x = p[1] * 0.01f, f = p[2] * 0.01f, mk = Colour::makeup (d, x, f);
-            for (int c = 0; c < 2; ++c) { float px = 0, py = 0; for (size_t i = s; i < e; ++i) { const float y = Colour::shaper (a.ch[c][i], d, x, f) * mk, o = y - px + 0.9995f * py; px = y; py = o; a.ch[c][i] = o; } }
+            for (int c = 0; c < 2; ++c) { Oversampler::run (a.ch[c], s, e, [&] (float v) { return Colour::shaper (v, d, x, f) * mk; }); float px = 0, py = 0; for (size_t i = s; i < e; ++i) { const float y = a.ch[c][i], o = y - px + 0.9995f * py; px = y; py = o; a.ch[c][i] = o; } }
             break;
         }
         case opEq:

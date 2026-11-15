@@ -135,6 +135,18 @@ static void testSmallEraser()
     CHECK (std::fabs (band (b, 600, 800) - band (a, 600, 800)) < 2.0);
     CHECK (std::fabs (band (b, 1800, 2200) - band (a, 1800, 2200)) < 2.0);
 }
+static void testDriveAlias()
+{
+    // A 5 kHz tone through full Drive: the harmonics that fold back (13 kHz and 3 kHz here) must stay 60 dB under the tone. Without oversampling they sit near -17 dB.
+    const int N = 1 << 15; const double sr = 48000.0; const int k0 = (int) std::lround (5000.0 * N / sr); const double fx = k0 * sr / N;
+    Audio a; a.sr = sr; a.ch[0].assign ((size_t) N, 0.f); a.ch[1].assign ((size_t) N, 0.f);
+    for (int i = 0; i < N; ++i) a.ch[0][(size_t) i] = a.ch[1][(size_t) i] = (float) (0.5 * std::sin (2 * 3.14159265358979 * fx * i / sr));
+    Editor e; e.load (a); float v[kMaxOpParams]; defaultParams (opDrive, v); v[0] = 100.f; v[1] = 0.f; v[2] = 0.f; e.apply (opDrive, v, true);
+    auto lvl = [&] (double f) { double re = 0, im = 0; for (int i = 0; i < N; ++i) { const double t = 2 * 3.14159265358979 * i / (N - 1), w = 0.35875 - 0.48829 * std::cos (t) + 0.14128 * std::cos (2 * t) - 0.01168 * std::cos (3 * t), ph = 2 * 3.14159265358979 * f * i / sr; re += e.audio.ch[0][(size_t) i] * w * std::cos (ph); im -= e.audio.ch[0][(size_t) i] * w * std::sin (ph); } return 20 * std::log10 (std::hypot (re, im) / N * 2 + 1e-12); };
+    const double fund = lvl (fx);
+    CHECK (lvl (13000.0 * (fx / 5000.0)) - fund < -60.0);
+    CHECK (lvl (3000.0 * (fx / 5000.0)) - fund < -60.0);
+}
 static void testHitsAndSplice()
 {
     // four clicks half a second apart are found, within a few ms
@@ -147,6 +159,6 @@ static void testHitsAndSplice()
 
 int main()
 {
-    testResample(); testStretchAndPitch(); testWarp(); testSpectral(); testDetect(); testFormat(); testPencil(); testHistory(); testHitsAndSplice(); testSmallEraser();
+    testResample(); testStretchAndPitch(); testWarp(); testSpectral(); testDetect(); testFormat(); testPencil(); testHistory(); testHitsAndSplice(); testSmallEraser(); testDriveAlias();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

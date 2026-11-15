@@ -55,6 +55,38 @@ const Colour = {
   }
 };
 
+
+// 4x oversampling for nonlinear stages (Drive): a Kaiser windowed sinc, 193 taps, passband to 0.45 of the sample rate, about 75 dB stopband.
+// Without it the harmonics of a hard shaper fold back into the audible range as harsh, out of tune grit. Zero delay (the filter is centred).
+const OS_L = 4, OS_H = 24, OS_N = 2 * OS_H * OS_L + 1;
+let osK = null;
+function osKernel() {
+  if (osK) return osK; const H = OS_H * OS_L, h = new Float64Array(OS_N), fc = .45 / OS_L, beta = 8, i0 = x => { let s = 1, t = 1; for (let k = 1; k < 40; ++k) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; } return s; }, ib = i0(beta);
+  for (let m = 0; m < OS_N; ++m) { const d = m - H, w = i0(beta * Math.sqrt(Math.max(0, 1 - (d / H) * (d / H)))) / ib, sc = d === 0 ? 1 : Math.sin(2 * PI * fc * d) / (2 * PI * fc * d); h[m] = 2 * fc * sc * w; }
+  let sum = 0; for (let m = 0; m < OS_N; ++m) sum += h[m]; for (let m = 0; m < OS_N; ++m) h[m] /= sum; return osK = h;
+}
+// Runs fn on x[s..e) at OS_L times the rate and writes the result back at the original rate. Neighbours outside [s,e) feed the filters but are not changed.
+// Polyphase upsampling and a symmetric downsampling filter, no bounds checks in the inner loops (the input is copied with zero padding first).
+let osP = null;
+function oversampleRun(x, s, e, fn) {
+  const h = osKernel(), L = OS_L, HH = OS_H, H = HH * L, n = x.length, B = 8192, T = 2 * HH + 1;
+  if (!osP) { osP = []; for (let p = 0; p < L; ++p) { const t = new Float64Array(T); for (let k = 0; k < T; ++k) t[k] = p + k * L < OS_N ? h[p + k * L] : 0; osP.push(t); } }
+  const out = new Float32Array(e - s), yb = new Float64Array((B + 2 * HH) * L), xp = new Float64Array(B + 4 * HH);
+  for (let b0 = s; b0 < e; b0 += B) {
+    const b1 = Math.min(e, b0 + B), j0 = b0 - HH, base = b0 - 2 * HH, cnt = b1 - b0 + 2 * HH;
+    for (let q = 0; q < b1 - b0 + 4 * HH; ++q) { const g = base + q; xp[q] = g >= 0 && g < n ? x[g] : 0; }
+    for (let jj = 0; jj < cnt; ++jj) for (let p = 0; p < L; ++p) {       // upsample, then the nonlinear stage
+      const t = osP[p]; let u = 0; for (let k = 0; k < T; ++k) u += xp[jj + 2 * HH - k] * t[k];
+      yb[jj * L + p] = fn(u * L);
+    }
+    for (let i = b0; i < b1; ++i) {                                       // filter and keep every L-th sample (the kernel is symmetric)
+      const c = (i - j0) * L; let acc = h[H] * yb[c]; for (let m = 1; m <= H; ++m) acc += h[H + m] * (yb[c + m] + yb[c - m]);
+      out[i - s] = acc;
+    }
+  }
+  for (let i = s; i < e; ++i) x[i] = out[i - s];
+}
+
 // ---------- WAV ----------
 function encodeWav(a, bits) {
   const flt = bits === 32, bps = bits / 8, n = a.frames, dataBytes = n * 2 * bps, buf = new ArrayBuffer(44 + dataBytes), v = new DataView(buf);
@@ -275,7 +307,7 @@ function applyOp(a, op, s, e, p) {
     }
     case 'drive': {
       const d = p[0] * .01, x = p[1] * .01, f = p[2] * .01, mk = Colour.makeup(d, x, f);
-      for (const c of ch) { let px = 0, py = 0; for (let i = s; i < e; ++i) { const y = Colour.shaper(c[i], d, x, f) * mk, o = y - px + .9995 * py; px = y; py = o; c[i] = o; } }
+      for (const c of ch) { oversampleRun(c, s, e, v => Colour.shaper(v, d, x, f) * mk); let px = 0, py = 0; for (let i = s; i < e; ++i) { const y = c[i], o = y - px + .9995 * py; px = y; py = o; c[i] = o; } }
       break;
     }
     case 'eq': for (const c of ch) {
