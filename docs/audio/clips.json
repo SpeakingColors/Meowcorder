@@ -1,0 +1,66 @@
+[
+  {
+    "file": "meowcorder-spectral-erase-before.mp3",
+    "pair": "spectral-erase",
+    "title": "Spectral erase",
+    "name": "Spectral erase, before",
+    "seconds": 6,
+    "description": "A warm pad with a whistle on top, about 2.6 kHz."
+  },
+  {
+    "file": "meowcorder-spectral-erase-after.mp3",
+    "pair": "spectral-erase",
+    "title": "Spectral erase",
+    "name": "Spectral erase, after",
+    "seconds": 6,
+    "description": "The same sound after one box in the spectral view erased the whistle. The pad is untouched."
+  },
+  {
+    "file": "meowcorder-warp-before.mp3",
+    "pair": "warp",
+    "title": "Warp",
+    "name": "Warp, before",
+    "seconds": 7.5,
+    "description": "A drum loop at its own tempo, 120 bpm."
+  },
+  {
+    "file": "meowcorder-warp-after.mp3",
+    "pair": "warp",
+    "title": "Warp",
+    "name": "Warp, after",
+    "seconds": 9.4,
+    "description": "The same loop slowed to 96 bpm with the pitch kept. Warp mode Beats keeps the drum hits sharp."
+  },
+  {
+    "file": "meowcorder-pitch-fix-before.mp3",
+    "pair": "pitch-fix",
+    "title": "Pitch fix",
+    "name": "Pitch fix, before",
+    "seconds": 8,
+    "description": "A short synth melody 40 cents flat."
+  },
+  {
+    "file": "meowcorder-pitch-fix-after.mp3",
+    "pair": "pitch-fix",
+    "title": "Pitch fix",
+    "name": "Pitch fix, after",
+    "seconds": 8,
+    "description": "The same melody moved up 0.4 semitone: now in tune."
+  },
+  {
+    "file": "meowcorder-cleanup-before.mp3",
+    "pair": "cleanup",
+    "title": "Cut and fade",
+    "name": "Cut and fade, before",
+    "seconds": 9,
+    "description": "A take with a click at the start, a pause, a short tone phrase and a long silence after it."
+  },
+  {
+    "file": "meowcorder-cleanup-after.mp3",
+    "pair": "cleanup",
+    "title": "Cut and fade",
+    "name": "Cut and fade, after",
+    "seconds": 3.2,
+    "description": "The click silenced, the silence trimmed away, a fade out and the level normalized."
+  }
+]

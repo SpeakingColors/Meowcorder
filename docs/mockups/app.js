@@ -49,16 +49,7 @@ const sampleBpm = () => warp.bpm || state.bpmAuto || 0;
 const toast = (msg, ms) => { let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); } t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, ms || 3500); };
 
 // ---------- demo sound ----------
-function rngMk(s) { let x = s >>> 0; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
-function makeDemo(sr) {
-  const len = Math.floor(4 * sr), a = new MC.Audio(sr, len), rnd = rngMk(1234), l = a.l, r = a.r;
-  for (let b = 0; b < 8; ++b) { const t0 = Math.floor(b * .5 * sr); for (let i = 0; i < .35 * sr && t0 + i < len; ++i) { const t = i / sr, ph = 2 * Math.PI * (45 * t + 110 * (1 - Math.exp(-t * 28)) / 28), s = Math.sin(ph) * Math.exp(-t * 7) * .9; l[t0 + i] += s; r[t0 + i] += s; } }
-  for (let b = 0; b < 8; ++b) { const t0 = Math.floor((b * .5 + .25) * sr); let lp = 0; for (let i = 0; i < .06 * sr && t0 + i < len; ++i) { const n = rnd() * 2 - 1, h = n - lp; lp += (n - lp) * .55; const s = h * Math.exp(-i / sr * 70) * .28; l[t0 + i] += s; r[t0 + i] += s * .8; } }
-  const notes = [57, 60, 64, 67]; for (let b = 0; b < 4; ++b) { const t0 = Math.floor((b * .5 + .5) * sr * .5 * 2 / 2 * 1), root = [0, 0, -2, -4][b];
-    for (let i = 0; i < .45 * sr && t0 + i < len; ++i) { const t = i / sr; let s = 0; notes.forEach((n, k) => { const f = 440 * Math.pow(2, (n + root - 69) / 12), ph = (t * f + k * .13) % 1; s += ph * 2 - 1; }); s *= Math.exp(-t * 6) * .07; l[t0 + i] += s * 1.2; r[t0 + i] += s * .8; } }
-  let pk = 0; for (let i = 0; i < len; ++i) pk = Math.max(pk, Math.abs(l[i]), Math.abs(r[i])); const g = pk > 0 ? .8 / pk : 1; for (let i = 0; i < len; ++i) { l[i] *= g; r[i] *= g; }
-  return a;
-}
+const { rngMk, makeDemo, makeMelody } = DEMOS;
 const SR = (AC ? (new AC()).sampleRate : 48000);
 let demo = makeDemo(SR);
 ed.load(demo.clone()); ed.audio.sr = SR; rec.prepare(SR, 30);
@@ -136,18 +127,6 @@ async function powerOn() {
   if (ctx.state !== 'running') await ctx.resume(); $('#overlay').hidden = true; $('#power').classList.add('on'); startInput();
 }
 // a sung-like melody, so the pitch view has something clean to show
-function makeMelody(sr) {
-  const len = Math.floor(4 * sr), a = new MC.Audio(sr, len), seq = [57, 60, 64, 62, 60, 59, 57, 64]; let ph = 0;
-  for (let n = 0; n < 8; ++n) {
-    const t0 = Math.floor(n * .5 * sr), L = Math.floor(.46 * sr), f0 = 440 * Math.pow(2, (seq[n] - 69) / 12);
-    for (let i = 0; i < L && t0 + i < len; ++i) {
-      const t = i / sr, f = f0 * (1 + .006 * Math.sin(2 * Math.PI * 5.5 * t) * Math.min(1, t * 4)); ph += 2 * Math.PI * f / sr; let s = 0;
-      for (let h = 1; h <= 16; ++h) { const hf = f * h; if (hf > sr * .45) break; s += Math.sin(h * ph) / h * (Math.exp(-Math.pow((hf - 800) / 500, 2)) + .6 * Math.exp(-Math.pow((hf - 2400) / 700, 2)) + .06); }
-      a.l[t0 + i] = a.r[t0 + i] = s * Math.min(1, t / .02) * Math.min(1, (L - i) / (.05 * sr));
-    }
-  }
-  let pk = 0; for (let i = 0; i < len; ++i) pk = Math.max(pk, Math.abs(a.l[i])); const g = pk > 0 ? .8 / pk : 1; for (let i = 0; i < len; ++i) { a.l[i] *= g; a.r[i] *= g; } return a;
-}
 
 let melody = null;
 const demoFor = kind => kind === 'melody' ? (melody || (melody = makeMelody(ctx ? ctx.sampleRate : SR))) : demo;
@@ -655,7 +634,13 @@ async function saveWav() {
 }
 function loadSound(a, name, label) { stopPlay(); ed.pushUndo(label); const keep = ed.undoStack.slice(); ed.load(a); ed.undoStack = keep; state.fname = name; state.ms = false; state.bitsFile = null; warp.bpm = 0; state.stopPos = 0; state.pausePos = -1; viewFit(); changed(); }
 const newSound = () => loadSound(new MC.Audio(ed.audio.sr || 48000), 'empty, not saved', 'New empty sound');
-const loadDemo = kind => loadSound(kind === 'melody' ? makeMelody(demo.sr) : demo.clone(), 'demo ' + (kind === 'melody' ? 'melody' : 'loop') + ', not saved', 'Load demo ' + (kind === 'melody' ? 'melody' : 'loop'));
+const DEMO_SOUNDS = {
+  loop: ['Drum loop', 'demo drum loop', () => demo.clone()],
+  melody: ['Melody (for the pitch view)', 'demo melody', () => makeMelody(demo.sr)],
+  whistle: ['Whistle on a pad (erase it in the spectral view)', 'demo whistle', () => DEMOS.makeWhistle(demo.sr)],
+  flat: ['Melody 40 cents flat (fix it in the pitch view)', 'demo flat melody', () => makeMelody(demo.sr, -40)],
+  take: ['Take with a click and a long silence (clean it up)', 'demo take', () => DEMOS.makeTake(demo.sr)] };
+const loadDemo = kind => { const d = DEMO_SOUNDS[kind] || DEMO_SOUNDS.loop; loadSound(d[2](), d[1] + ', not saved', 'Load ' + d[1]); };
 
 // ---------- buttons ----------
 $('#bStart').addEventListener('click', powerOn); $('#power').addEventListener('click', () => { if (ctx && ctx.state === 'running') { ctx.suspend(); $('#power').classList.remove('on'); $('#overlay').hidden = false; } else powerOn(); });
@@ -723,7 +708,7 @@ const MENUS = [
     { l: 'Save bit depth', sub: [8, 16, 24, 32].map(b => radio(bitsName(b), () => state.bits === b, () => setBits(b))) },
     '-',
     { l: 'Audio on or off', k: 'Alt+A', f: () => $('#power').click() },
-    { l: 'Demo sounds', sub: [{ l: 'Drum loop', f: () => loadDemo('loop') }, { l: 'Melody (for the pitch view)', f: () => loadDemo('melody') }] } ] },
+    { l: 'Demo sounds', sub: Object.keys(DEMO_SOUNDS).map(k => ({ l: DEMO_SOUNDS[k][0], f: () => loadDemo(k) })) } ] },
   { name: 'Edit', items: [
     { l: 'Undo', k: 'Ctrl+Z', f: ED(() => ed.undo()), en: () => ed.canUndo() },
     { l: 'Redo', k: 'Ctrl+Y', f: ED(() => ed.redo()), en: () => ed.canRedo() },
