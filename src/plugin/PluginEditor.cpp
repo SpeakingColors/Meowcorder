@@ -444,6 +444,123 @@ private:
     juce::Point<int> p0, p1; bool dragging = false; size_t anchor = 0;
 };
 
+// The pitch view: a piano roll of the notes found in the sound. Drag a note up or down to change its pitch, the sound follows.
+class PitchView : public juce::Component
+{
+public:
+    PitchView (MeowcorderProcessor& p, WaveView& w, std::function<void()> edited) : proc (p), wave (w), onEdited (std::move (edited)) {}
+    static juce::String noteName (double m) { static const char* nn[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }; const long r = std::lround (m); return juce::String (nn[((r % 12) + 12) % 12]) + juce::String ((int) std::floor ((double) r / 12.0) - 1); }
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (juce::Colour (0xff0a0a0c)); const auto& a = proc.ed.audio; const int w = getWidth(), h = getHeight();
+        if (a.frames() == 0) { g.setColour (kDim); g.setFont (labelFont (18.f)); g.drawText ("Record or open a sound with a clear pitch to see its notes.", getLocalBounds(), juce::Justification::centred); return; }
+        if (a.frames() > (size_t) (a.sr * 120)) { g.setColour (kDim); g.setFont (labelFont (16.f)); g.drawText ("The pitch view works on sounds up to two minutes. Select a part and crop it first.", getLocalBounds(), juce::Justification::centred); return; }
+        refreshNotes(); computeRange(); const double rowH = (double) h / (hi - lo);
+        for (int m = (int) lo; m < (int) hi; ++m)
+        {
+            const int y = (int) ((hi - m - 1) * rowH); const bool black = (m % 12 == 1 || m % 12 == 3 || m % 12 == 6 || m % 12 == 8 || m % 12 == 10);
+            g.setColour (black ? juce::Colour (0xff0e0e11) : juce::Colour (0xff131418)); g.fillRect (0, y, w, (int) std::ceil (rowH)); g.setColour (juce::Colour (0xff1d1e24)); g.drawHorizontalLine (y, 0.f, (float) w);
+            if (m % 12 == 0) { g.setColour (kDim); g.setFont (monoFont (10.f)); g.drawText (noteName ((double) m), 4, y + (int) rowH - 13, 40, 12, juce::Justification::centredLeft); }
+        }
+        g.setColour (kBlue.withAlpha (0.55f));
+        for (size_t i = 0; i < result.track.midi.size(); ++i) { const float m = result.track.midi[i]; if (std::isnan (m)) continue; g.fillRect (wave.xAt ((double) result.track.t[i]), (int) ((hi - (double) m - 0.5) * rowH), 2, 2); }
+        for (size_t i = 0; i < result.notes.size(); ++i)
+        {
+            const auto& n = result.notes[i]; const bool drag = (int) i == dragIdx; const double mm = n.m + (drag ? shiftSemis : 0);
+            const int x0 = wave.xAt ((double) n.t0), x1 = wave.xAt ((double) n.t1); auto r = juce::Rectangle<float> ((float) x0, (float) ((hi - mm - 0.5) * rowH - rowH * 0.4), (float) std::max (3, x1 - x0), (float) (rowH * 0.8));
+            g.setColour ((drag ? kPink : kGreen).withAlpha (0.35f)); g.fillRoundedRectangle (r, 3.f); g.setColour (drag ? kPink : kGreen); g.drawRoundedRectangle (r, 3.f, 1.2f);
+            g.setFont (monoFont (10.f)); g.drawText (noteName (mm) + (drag && shiftSemis != 0 ? juce::String (shiftSemis > 0 ? " +" : " ") + juce::String (shiftSemis) + " st" : juce::String()), r.toNearestInt().reduced (3, 0), juce::Justification::centredLeft);
+        }
+        if (result.notes.empty()) { g.setColour (kDim); g.setFont (labelFont (16.f)); g.drawText ("No clear notes found in this sound.", getLocalBounds(), juce::Justification::centred); }
+        if (proc.isPlaying()) { const int x = wave.xAt (proc.playheadFrames()); if (x >= 0 && x < w) { g.setColour (kYellow); g.drawVerticalLine (x, 0.f, (float) h); } }
+    }
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (auto* top = getParentComponent()) top->grabKeyboardFocus();
+        dragIdx = -1; shiftSemis = 0; const double f = wave.frameAt (e.x), rowH = (double) getHeight() / (hi - lo);
+        for (size_t i = 0; i < result.notes.size(); ++i) { const auto& n = result.notes[i]; const double y = (hi - n.m - 0.5) * rowH; if (f >= (double) n.t0 && f <= (double) n.t1 && std::fabs ((double) e.y - y) <= rowH) { dragIdx = (int) i; break; } }
+        if (dragIdx < 0 && proc.ed.audio.frames() > 0) { proc.ed.setCursor ((size_t) juce::jlimit (0.0, wave.frames(), f)); if (proc.isPlaying()) proc.setPlayhead (f); }
+        repaint();
+    }
+    void mouseDrag (const juce::MouseEvent& e) override { if (dragIdx >= 0) { shiftSemis = (int) std::lround (-(double) e.getDistanceFromDragStartY() / ((double) getHeight() / (hi - lo))); repaint(); } }
+    void mouseUp (const juce::MouseEvent&) override
+    {
+        if (dragIdx >= 0 && shiftSemis != 0 && (size_t) dragIdx < result.notes.size())
+        {
+            const auto n = result.notes[(size_t) dragIdx]; const double semis = shiftSemis;
+            proc.ed.transform ("Pitch of a note", [&] (mc::Audio& a) { mc::pitchShiftRange (a, (size_t) n.t0, (size_t) n.t1, semis, true, 0.0); });
+            dragIdx = -1; shiftSemis = 0; onEdited();
+        }
+        dragIdx = -1; shiftSemis = 0; repaint();
+    }
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override { wave.mouseWheelMove (e, w); }
+private:
+    void refreshNotes() { if (key == proc.version) return; key = proc.version; result = mc::detectNotes (proc.ed.audio); }
+    void computeRange()
+    {
+        if (result.notes.empty()) { lo = 40; hi = 76; return; }
+        double mn = 200, mx = 0; for (auto& n : result.notes) { mn = std::min (mn, n.m); mx = std::max (mx, n.m); }
+        lo = std::floor (mn) - 3; hi = std::ceil (mx) + 4; if (hi - lo < 24) { const double c = 0.5 * (hi + lo); lo = std::floor (c - 12); hi = lo + 24; }
+    }
+    MeowcorderProcessor& proc; WaveView& wave; std::function<void()> onEdited; mc::NoteResult result; uint64_t key = 0; double lo = 40, hi = 76; int dragIdx = -1, shiftSemis = 0;
+};
+
+// Warp and transpose: speed with four ways to do it, pitch, fine tune and formants. Preview plays the result, Apply writes it into the sound.
+class WarpPanel : public juce::Component
+{
+public:
+    WarpPanel (MeowcorderProcessor& p, std::function<void (const mc::WarpOptions&, bool)> run, std::function<void()> finished) : proc (p), runWarp (std::move (run)), done (std::move (finished))
+    {
+        struct Def { const char* name; double lo, hi, def; const char* unit; const char* tip; };
+        static const Def defs[] = { { "Speed", 50, 200, 100, "%", "How fast it plays. 100 is as recorded. More is faster and shorter." }, { "Transpose", -24, 24, 0, "st", "Pitch change in semitones." },
+                                    { "Fine", -100, 100, 0, "ct", "Fine tune in cents." }, { "Formant shift", -12, 12, 0, "st", "Moves the vowel shape of a voice, when Formants is on Keep." } };
+        for (int i = 0; i < 4; ++i)
+        {
+            auto lab = std::make_unique<juce::Label> (juce::String(), juce::String (defs[i].name)); lab->setFont (labelFont (16.f, true)); lab->setColour (juce::Label::textColourId, kInk); lab->setTooltip (defs[i].tip); addAndMakeVisible (*lab);
+            auto sl = std::make_unique<juce::Slider> (juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight); sl->setRange (defs[i].lo, defs[i].hi, i == 0 ? 0.1 : (i == 2 ? 1.0 : 0.01)); sl->setValue (saved[i], juce::dontSendNotification);
+            sl->setDoubleClickReturnValue (true, defs[i].def); sl->setTextValueSuffix (juce::String (" ") + defs[i].unit); sl->setColour (juce::Slider::trackColourId, kGreen); sl->setColour (juce::Slider::thumbColourId, kInk); sl->setColour (juce::Slider::backgroundColourId, kLine);
+            sl->setColour (juce::Slider::textBoxTextColourId, kInk); sl->setColour (juce::Slider::textBoxOutlineColourId, kLine); sl->setTooltip (defs[i].tip); addAndMakeVisible (*sl);
+            labels[i] = lab.get(); sliders[i] = sl.get(); owned.push_back (std::move (lab)); owned.push_back (std::move (sl));
+        }
+        for (auto* cb : { &mode, &formant }) addAndMakeVisible (*cb);
+        mode.addItemList ({ "Stretch (pitch stays)", "Repitch (like tape)", "Beats (hits stay sharp)", "Texture (grains)" }, 1); mode.setSelectedId (savedMode + 1, juce::dontSendNotification); mode.setTooltip ("How the speed is changed. Stretch and Beats keep the pitch, Repitch changes both, Texture smears it into grains.");
+        formant.addItemList ({ "Follow the pitch", "Keep the formants" }, 1); formant.setSelectedId (savedFormant + 1, juce::dontSendNotification); formant.setTooltip ("Keep the formants so a transposed voice does not sound smaller or bigger.");
+        for (auto* b : { &preview, &apply, &cancel }) addAndMakeVisible (*b);
+        preview.onClick = [this] { togglePreview(); }; apply.onClick = [this] { proc.endPreview(); remember(); runWarp (options(), false); done(); }; cancel.onClick = [this] { proc.endPreview(); done(); };
+        setWantsKeyboardFocus (true); setSize (600, 330);
+    }
+    void paint (juce::Graphics& g) override
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.5f)); g.fillRoundedRectangle (getLocalBounds().toFloat().translated (0, 4), 8.f);
+        g.setColour (kPanel); g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (1.f), 8.f); g.setColour (kBtnLine); g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.f), 8.f, 1.f);
+        g.setColour (kInk); g.setFont (titleFont (22.f)); g.drawText ("Warp and transpose", 20, 10, getWidth() - 40, 28, juce::Justification::centredLeft);
+        g.setColour (kDim); g.setFont (labelFont (14.f)); g.drawText ("Changes the speed and the pitch of the sound. Long sounds take a moment to process.", 20, 38, getWidth() - 40, 20, juce::Justification::centredLeft);
+        g.setFont (labelFont (16.f)); g.setColour (kInk); g.drawText ("Method", 20, 80 + 38 * 4, 130, 28, juce::Justification::centredLeft); g.drawText ("Formants", 20, 80 + 38 * 5 - 0, 130, 28, juce::Justification::centredLeft);
+        g.setColour (kDim); g.setFont (monoFont (11.f)); g.drawText (proc.ed.hasSelection() ? "Applies to the selection" : "Applies to the whole sound", 20, getHeight() - 34, 260, 20, juce::Justification::centredLeft);
+    }
+    void resized() override
+    {
+        int y = 80; for (int i = 0; i < 4; ++i) { labels[i]->setBounds (20, y, 130, 28); sliders[i]->setBounds (150, y, getWidth() - 170, 28); y += 38; }
+        mode.setBounds (150, y, 260, 28); formant.setBounds (150, y + 38, 260, 28);
+        preview.setBounds (getWidth() - 304, getHeight() - 40, 96, 28); apply.setBounds (getWidth() - 200, getHeight() - 40, 88, 28); cancel.setBounds (getWidth() - 104, getHeight() - 40, 88, 28);
+    }
+    bool keyPressed (const juce::KeyPress& k) override
+    {
+        if (k == juce::KeyPress::escapeKey) { proc.endPreview(); done(); return true; } if (k == juce::KeyPress::spaceKey) { togglePreview(); return true; }
+        if (k == juce::KeyPress::returnKey) { proc.endPreview(); remember(); runWarp (options(), false); done(); return true; } return false;
+    }
+private:
+    mc::WarpOptions options() const
+    {
+        mc::WarpOptions o; o.ratio = sliders[0]->getValue() / 100.0; o.mode = mode.getSelectedId() - 1; o.semis = sliders[1]->getValue(); o.cents = sliders[2]->getValue(); o.formant = formant.getSelectedId() == 2; o.fshift = sliders[3]->getValue(); return o;
+    }
+    void remember() { for (int i = 0; i < 4; ++i) saved[i] = sliders[i]->getValue(); savedMode = mode.getSelectedId() - 1; savedFormant = formant.getSelectedId() - 1; }
+    void togglePreview() { if (proc.isPreviewing() && proc.isPlaying()) { proc.endPreview(); preview.setButtonText ("Preview"); return; } remember(); runWarp (options(), true); preview.setButtonText ("Stop"); }
+    MeowcorderProcessor& proc; std::function<void (const mc::WarpOptions&, bool)> runWarp; std::function<void()> done;
+    std::vector<std::unique_ptr<juce::Component>> owned; juce::Label* labels[4] = {}; juce::Slider* sliders[4] = {}; juce::ComboBox mode, formant; juce::TextButton preview { "Preview" }, apply { "Apply" }, cancel { "Cancel" };
+    static inline double saved[4] = { 100, 0, 0, 0 }; static inline int savedMode = 0, savedFormant = 1;
+};
+
 // Settings of one operation: sliders and choices straight from the operation table, Apply and Cancel.
 class OpPanel : public juce::Component
 {
@@ -526,13 +643,13 @@ class MeowcorderEditor::Content : public juce::Component, public juce::FileDragA
 {
 public:
     Content (MeowcorderEditor& owner, MeowcorderProcessor& pr)
-        : editor (owner), p (pr), wave (pr, [this] { refresh(); }), spec (pr, wave, [this] { changed(); }, [this] { refresh(); }), meters (pr), live (pr), ruler (pr, wave), overview (pr, wave)
+        : editor (owner), p (pr), wave (pr, [this] { refresh(); }), spec (pr, wave, [this] { changed(); }, [this] { refresh(); }), pitch (pr, wave, [this] { changed(); }), meters (pr), live (pr), ruler (pr, wave), overview (pr, wave)
     {
         setWantsKeyboardFocus (true); setSize (layout::kW, layout::kH);
-        addAndMakeVisible (wave); addChildComponent (spec); addAndMakeVisible (meters); addAndMakeVisible (live); addAndMakeVisible (ruler); addAndMakeVisible (overview);
-        wave.onZoom = [this] { ruler.repaint(); overview.repaint(); spec.repaint(); refresh(); };
+        addAndMakeVisible (wave); addChildComponent (spec); addChildComponent (pitch); addAndMakeVisible (meters); addAndMakeVisible (live); addAndMakeVisible (ruler); addAndMakeVisible (overview);
+        wave.onZoom = [this] { ruler.repaint(); overview.repaint(); spec.repaint(); pitch.repaint(); refresh(); };
         wave.unit = 0; wave.audioReplaced();
-        setBoundsOf (live, 55, 272, 1155, 33); setBoundsOf (wave, 55, 337, 1155, 459); setBoundsOf (spec, 55, 337, 1155, 459); setBoundsOf (ruler, 55, 797, 1155, 21); setBoundsOf (overview, 55, 818, 1155, 33); setBoundsOf (meters, 1224, 68, 100, 778);
+        setBoundsOf (live, 55, 272, 1155, 33); setBoundsOf (wave, 55, 337, 1155, 459); setBoundsOf (spec, 55, 337, 1155, 459); setBoundsOf (pitch, 55, 337, 1155, 459); setBoundsOf (ruler, 55, 797, 1155, 21); setBoundsOf (overview, 55, 818, 1155, 33); setBoundsOf (meters, 1224, 68, 100, 778);
 
         // menu bar
         const struct { const char* name; layout::R r; } menuDefs[] = { { "File", layout::mFile }, { "Edit", layout::mEdit }, { "Select", layout::mSelect }, { "View", layout::mView }, { "Spectral", layout::mSpectral },
@@ -541,7 +658,7 @@ public:
         for (auto& d : menuDefs)
         {
             auto b = std::make_unique<TextBtn> (d.name, TextBtn::menu); b->setBounds (rc (d.r)); const int idx = mi++; auto* raw = b.get();
-            b->onClick = [this, idx, raw] { showMenu (idx, raw); }; if (idx == 5) { b->setActive (false); b->setTooltip (kSoon); }
+            b->onClick = [this, idx, raw] { showMenu (idx, raw); }; 
             addAndMakeVisible (*b); texts.push_back (std::move (b));
         }
 
@@ -597,7 +714,7 @@ public:
             for (int i = 0; i < 3; ++i)
             {
                 auto b = std::make_unique<TextBtn> (tabs[i].n, TextBtn::tab); b->setBounds (rc (tabs[i].r)); tabBtns[i] = b.get();
-                if (i == 2) { b->setActive (false); b->setTooltip (kSoon); } else b->onClick = [this, i] { setViewMode (i); };
+                b->onClick = [this, i] { setViewMode (i); };
                 addAndMakeVisible (*b); texts.push_back (std::move (b));
             }
             const char* tn[] = { "Mouse", "Select", "Scissors", "Cutter", "Copy", "Paste", "Amp" };
@@ -617,6 +734,7 @@ public:
             auto b = std::make_unique<TextBtn> (c.n, TextBtn::chip); b->setBounds (rc (c.r)); chips[c.n] = b.get(); const int kind = c.kind;
             if (kind == 1) { b->setTooltip ("File format of Save: 16 bit, 24 bit or 32 bit float. Click to change."); b->onClick = [this] { showBitsMenu(); }; }
             else if (kind == 2) { b->setTooltip ("How positions are shown: time, seconds or samples. Click to change."); b->onClick = [this] { showUnitMenu(); }; }
+            else if (std::string (c.n) == "warp") { b->setTooltip ("Change the speed and the pitch of the sound. Opens the warp panel."); b->onClick = [this] { openWarp(); }; }
             else { b->setActive (false); b->setTooltip (std::string (c.n) == "ch" || std::string (c.n) == "sr" ? "Channels and sample rate of this sound." : std::string (c.n) == "bpm" ? "Tempo found in the hits of this sound." : kSoon); }
             addAndMakeVisible (*b); texts.push_back (std::move (b));
         }
@@ -661,8 +779,26 @@ public:
     // ---- actions
     void setViewMode (int m)
     {
-        viewMode = m; wave.setVisible (m == 0); spec.setVisible (m == 1); for (auto& b : toolBtns) b->setVisible (m == 1);
+        viewMode = m; wave.setVisible (m == 0); spec.setVisible (m == 1); pitch.setVisible (m == 2); for (auto& b : toolBtns) b->setVisible (m == 1);
         if (m == 1) toolHint = toolHints[juce::jlimit (0, 6, spec.tool)]; repaint (juce::Rectangle<int> (55, 300, 1155, 40)); refresh();
+    }
+    void openWarp()
+    {
+        if (warpPanel || panel || p.ed.audio.frames() == 0) return;
+        warpPanel = std::make_unique<WarpPanel> (p, [this] (const mc::WarpOptions& o, bool previewOnly) { runWarp (o, previewOnly); }, [this] { auto old = std::move (warpPanel); removeChildComponent (old.get()); grabKeyboardFocus(); });
+        warpPanel->setCentrePosition (layout::kW / 2, layout::kH / 2 - 40); addAndMakeVisible (*warpPanel); warpPanel->grabKeyboardFocus();
+    }
+    void runWarp (mc::WarpOptions o, bool previewOnly)
+    {
+        const size_t s = p.ed.rangeStart(), e = p.ed.rangeEnd(); if (e <= s) return;
+        mc::Audio seg = p.ed.audio.slice (s, e);
+        if (o.mode == 2) for (size_t h : mc::detectTransients (seg, 0.5f)) o.hits.push_back (h);
+        const mc::Audio res = mc::warpAudio (seg, o);
+        auto put = [&] (mc::Audio& a) { for (int c = 0; c < 2; ++c) { a.ch[c].erase (a.ch[c].begin() + (std::ptrdiff_t) s, a.ch[c].begin() + (std::ptrdiff_t) e); a.ch[c].insert (a.ch[c].begin() + (std::ptrdiff_t) s, res.ch[c].begin(), res.ch[c].end()); } };
+        if (previewOnly) { mc::Audio tmp = p.ed.audio; put (tmp); p.startPreview (tmp, s, s + res.frames()); return; }
+        const bool sel = p.ed.hasSelection();
+        p.ed.transform ("Warp", [&] (mc::Audio& a) { put (a); if (sel) p.ed.selB = s + res.frames(); });
+        changed(); wave.fit();
     }
     void doNew() { if (p.ed.audio.frames() > 0) { p.ed.setSelection (0, p.ed.audio.frames()); p.ed.deleteSelection(); } p.soundName = "new sound, not saved"; changed(); }
     void doOpen()
@@ -735,6 +871,7 @@ public:
                 item (m, "Cut the box", "", spec.hasBox, [this] { spec.applyBox (true); }); item (m, "Amp the box", "", spec.hasBox, [this] { spec.applyBox (false); }); item (m, "Copy the box", "", spec.hasBox, [this] { spec.copyBox(); });
                 break;
             }
+            case 5: item (m, "Warp and transpose...", "", hasA, [this] { openWarp(); }); break;
             case 6: item (m, p.isPlaying() ? "Stop" : "Play", "Space", hasA, [this] { doPlay(); }); item (m, "Loop", "L", true, [this] { toggleParam ("loop"); }); break;
             case 7: item (m, p.recState() == MeowcorderProcessor::recOff ? "Record" : "Stop recording", "Enter", true, [this] { doRecord(); }); item (m, "Grab the last seconds", "G", true, [this] { doGrab(); }); m.addSeparator(); showTakeItems (m); break;
             case 8:
@@ -783,7 +920,7 @@ public:
     bool keyPressed (const juce::KeyPress& k) override
     {
         const auto mods = k.getModifiers(); const int c = k.getKeyCode(); const bool ctrl = mods.isCtrlDown() || mods.isCommandDown();
-        if (panel) return false;
+        if (panel || warpPanel) return false;
         if (ctrl && c == 'Z') { if (mods.isShiftDown()) doRepeat(); else doUndo(); return true; }
         if (ctrl && c == 'Y') { doRedo(); return true; } if (ctrl && c == 'X') { doCut(); return true; } if (ctrl && c == 'C') { doCopy(); return true; } if (ctrl && c == 'V') { doPaste(); return true; }
         if (ctrl && c == 'A') { doSelectAll(); return true; } if (ctrl && c == 'O') { doOpen(); return true; } if (ctrl && c == 'S') { doSave(); return true; }
@@ -819,7 +956,7 @@ private:
         chips["unit"]->label = wave.unit == 0 ? "Time" : wave.unit == 1 ? "Seconds" : "Samples"; if (bpmKey != p.version) { bpmKey = p.version; bpmValue = mc::detectBpm (p.ed.audio); } chips["bpm"]->label = bpmValue > 0.f ? juce::String (bpmValue, 1) + " bpm" : juce::String ("no tempo"); chips["sync"]->label = "Free"; chips["warp"]->label = "Warp >";
         chips["scale"]->label = juce::String (p.uiScalePercent) + "%"; for (auto& kv : chips) kv.second->repaint();
         meters.thresholdDb = live.thresholdDb = p.apvts.getRawParameterValue ("threshold")->load(); meters.repaint(); live.repaint();
-        if (p.isPlaying() || force) { wave.repaint(); if (viewMode == 1) spec.repaint(); }
+        if (p.isPlaying() || force) { wave.repaint(); if (viewMode == 1) spec.repaint(); if (viewMode == 2) pitch.repaint(); }
         repaint (juce::Rectangle<int> (39, 64, 1183, 155)); repaint (juce::Rectangle<int> (39, 222, 1183, 28));
     }
     IconButton* add (const juce::String& key, const layout::R& r, std::function<void()> onClick, juce::Colour accent = kBlue)
@@ -832,11 +969,11 @@ private:
 
     bool ready = false; uint64_t bpmKey = 0; float bpmValue = 0.f;
     MeowcorderEditor& editor; MeowcorderProcessor& p;
-    WaveView wave; SpecView spec; Meters meters; LiveStrip live; Ruler ruler; Overview overview; int viewMode = 0;
+    WaveView wave; SpecView spec; PitchView pitch; Meters meters; LiveStrip live; Ruler ruler; Overview overview; int viewMode = 0;
     std::vector<std::unique_ptr<TextBtn>> toolBtns; TextBtn* tabBtns[3] = {}; juce::String toolHint; juce::String toolHints[7];
     std::vector<std::unique_ptr<IconButton>> icons; std::vector<std::unique_ptr<TextBtn>> texts; std::map<juce::String, IconButton*> byKey; std::map<juce::String, TextBtn*> chips;
     IconButton* opButtons[mc::opCount] = {}; TextBtn* segBtns[3] = {}; std::unique_ptr<TextBtn> takeBtn; std::unique_ptr<Knob> knobs[3]; juce::Rectangle<int> valueRects[3];
-    std::unique_ptr<OpPanel> panel; std::unique_ptr<juce::FileChooser> chooser; std::unique_ptr<juce::TooltipWindow> tips;
+    std::unique_ptr<OpPanel> panel; std::unique_ptr<WarpPanel> warpPanel; std::unique_ptr<juce::FileChooser> chooser; std::unique_ptr<juce::TooltipWindow> tips;
 };
 
 // ---------------------------------------------------------------- editor shell

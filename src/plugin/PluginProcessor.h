@@ -11,6 +11,7 @@
 #include <mutex>
 #include "../core/MeowCore.h"
 #include "../core/MeowOps.h"
+#include "../core/MeowDsp.h"
 
 class MeowcorderProcessor : public juce::AudioProcessor, private juce::Thread
 {

@@ -1,5 +1,6 @@
 // Meowcorder core tests. Pure C++17: sh tests/run.sh
 #include "../src/core/MeowCore.h"
+#include "../src/core/MeowDsp.h"
 #include <cstdio>
 #include <set>
 using namespace mc;
@@ -250,8 +251,46 @@ static void testSpectral()
     ed.undo(); double dd = 0; for (size_t i = 0; i < n; i += 97) dd = std::max (dd, (double) std::fabs (ed.audio.ch[0][i] - ref.ch[0][i])); CHECK (dd == 0.0);   // undo restores exactly
 }
 
+// Port of tools/dsp_test.js: the C++ resampler, stretch, pitch shift, warp and note detection must behave like the mockup's.
+static double zcFreq (const std::vector<float>& x, double sr)
+{
+    const size_t a = (size_t) ((double) x.size() * 0.25), b = (size_t) ((double) x.size() * 0.75); int z = 0; long first = -1, last = -1;
+    for (size_t i = a + 1; i < b; ++i) if (x[i - 1] <= 0 && x[i] > 0) { if (first < 0) first = (long) i; last = (long) i; ++z; }
+    return (z - 1) * sr / (double) (last - first);
+}
+static double rmsOf (const std::vector<float>& x, size_t a, size_t b) { double s = 0; for (size_t i = a; i < b; ++i) s += (double) x[i] * x[i]; return std::sqrt (s / (double) (b - a)); }
+static void testDsp()
+{
+    const double sr = 48000; Audio a = sine (440, 1.0, 0.5f, sr);
+    Audio r = resampleAudio (a, 44100); CHECK (r.frames() == 44100 && near (zcFreq (r.ch[0], 44100), 440, 1.5) && near (rmsOf (r.ch[0], 5000, 30000), 0.5 / std::sqrt (2.0), 0.01));
+    r = resampleAudio (a, 96000); CHECK (r.frames() == 96000 && near (zcFreq (r.ch[0], 96000), 440, 1.5));
+    auto st = pvStretch (a.ch[0], 1.5); CHECK (st.size() == 72000 && near (zcFreq (st, sr), 440, 3) && near (rmsOf (st, 20000, 50000), 0.3535, 0.03));
+    st = pvStretch (a.ch[0], 0.75); CHECK (st.size() == 36000 && near (zcFreq (st, sr), 440, 3));
+    Audio ps = pitchShift (a, 12, false, 0); CHECK (ps.frames() == a.frames() && near (zcFreq (ps.ch[0], sr), 880, 6));
+    ps = pitchShift (a, -5, true, 0); CHECK (near (zcFreq (ps.ch[0], sr), 440 * std::pow (2.0, -5.0 / 12), 4));
+    WarpOptions wo; wo.ratio = 2; wo.mode = 1; Audio w = warpAudio (a, wo); CHECK (w.frames() == 24000 && near (zcFreq (w.ch[0], sr), 880, 6));
+    wo = WarpOptions(); wo.ratio = 1.25; wo.mode = 0; w = warpAudio (a, wo); CHECK (w.frames() == 38400 && near (zcFreq (w.ch[0], sr), 440, 3));
+    wo = WarpOptions(); wo.ratio = 0.8; wo.mode = 3; w = warpAudio (a, wo); CHECK (w.frames() == 60000 && rmsOf (w.ch[0], 10000, 50000) > 0.15);
+    // beats: clicks stay sharp
+    Audio cl; cl.sr = sr; cl.resize (48000 * 2); std::vector<size_t> hits;
+    for (int b = 0; b < 4; ++b) { const size_t t0 = (size_t) b * 24000; hits.push_back (t0); for (int i = 0; i < 6000; ++i) cl.ch[0][t0 + (size_t) i] = cl.ch[1][t0 + (size_t) i] = std::exp (-(float) i / 800.f) * std::sin (2.f * 3.14159265f * 200.f * (float) i / 48000.f); }
+    wo = WarpOptions(); wo.ratio = 0.8; wo.mode = 2; wo.hits = hits; w = warpAudio (cl, wo); float pk = 0; for (size_t i = 0; i < 2000; ++i) pk = std::max (pk, std::fabs (w.ch[0][i]));
+    CHECK (w.frames() == 120000 && pk > 0.9f);
+    // note detection
+    auto d = detectNotes (sine (220, 1.2, 0.5f, sr)); CHECK (d.notes.size() == 1 && near (d.notes[0].m, 57, 0.1));
+    Audio two; two.sr = sr; two.resize (48000 * 2); for (size_t i = 0; i < two.frames(); ++i) { const double f = i < 48000 ? 220 : 330; two.ch[0][i] = two.ch[1][i] = (float) (0.4 * std::sin (2 * kPi * f * (double) i / sr)); }
+    auto dn = detectNotes (two); CHECK (dn.notes.size() == 2 && near (dn.notes[0].m, 57, 0.2) && near (dn.notes[1].m, 64.02, 0.3));
+    auto dsh = detectNotes (pitchShift (sine (220, 1.5, 0.5f, sr), 3, true, 0)); CHECK (dsh.notes.size() >= 1 && near (dsh.notes[0].m, 60, 0.2));
+    // the editor can run such a change as one undo step with its own label
+    { Editor ed; ed.load (sine (220, 0.5, 0.5f, sr)); const size_t n0 = ed.audio.frames(); WarpOptions w2; w2.ratio = 2; w2.mode = 1;
+      CHECK (ed.transform ("Warp", [&] (Audio& x) { x = warpAudio (x, w2); })); CHECK (ed.audio.frames() == n0 / 2 && std::string (ed.historyLabel (1)) == "Warp"); ed.undo(); CHECK (ed.audio.frames() == n0); }
+    // range shift touches only the range
+    Audio rg = sine (220, 1.5, 0.5f, sr); pitchShiftRange (rg, 24000, 48000, 12, true, 0);
+    CHECK (near (zcFreq (std::vector<float> (rg.ch[0].begin() + 30000, rg.ch[0].begin() + 42000), sr), 440, 6) && near (zcFreq (std::vector<float> (rg.ch[0].begin() + 2000, rg.ch[0].begin() + 20000), sr), 220, 2));
+}
+
 int main()
 {
-    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo(); testSpectral();
+    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo(); testSpectral(); testDsp();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

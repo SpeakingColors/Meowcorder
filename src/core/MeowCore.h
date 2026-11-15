@@ -689,6 +689,8 @@ public:
     }
     bool spectralCopy (const SRegion& r) { return mc::spectralCopy (audio, r, sclip); }
     bool spectralPaste (double atFrame, double destHz) { if (sclip.nf <= 0 || audio.frames() == 0) return false; pushUndo ("Spectral paste"); return mc::spectralPaste (audio, sclip, atFrame, destHz); }
+    // Runs a change of the sound as one undo step, for the DSP that lives in MeowDsp.h (warp, pitch shift). fn (Audio&) may also move selA and selB.
+    template <class Fn> bool transform (const char* label, Fn fn) { if (audio.frames() == 0) return false; pushUndo (label); fn (audio); return true; }
     bool hasSpectralClip() const { return sclip.nf > 0; }
     double spectralClipHz() const { return sclip.fc; }
     const Audio& clipboard() const { return clip; }

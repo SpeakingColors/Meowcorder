@@ -15,9 +15,16 @@ int main (int argc, char** argv)
         const float v = env * (0.8f * (float) std::sin (2 * 3.14159265 * (90.0 + 400.0 * std::exp (-ph * 30.0)) * ph) + n);
         a.ch[0][i] = v; a.ch[1][i] = v * 0.97f;
     }
+    if (argc > 2 && std::string (argv[2]) == "pitch")        // a short melody instead of the drums
+    {
+        const double notes[] = { 220.0, 261.63, 329.63, 293.66, 220.0 };
+        for (size_t i = 0; i < a.frames(); ++i) { const double t = (double) i / a.sr; const int k = juce::jlimit (0, 4, (int) (t / 0.8)); const double lt = t - k * 0.8; const float env = (float) (std::min (1.0, lt * 40.0) * std::exp (-lt * 1.2));
+                                                  a.ch[0][i] = a.ch[1][i] = 0.45f * env * (float) (std::sin (2 * 3.14159265 * notes[k] * t) + 0.3 * std::sin (4 * 3.14159265 * notes[k] * t)); }
+    }
     p.ed.load (a); p.audioChanged(); p.soundName = "demo loop, not saved";
     if (argc > 2 && std::string (argv[2]) == "sel") p.ed.setSelection ((size_t) (0.9 * 44100.0), (size_t) (2.1 * 44100.0));
     std::unique_ptr<juce::AudioProcessorEditor> ed (p.createEditor());
+    if (argc > 2 && std::string (argv[2]) == "pitch") static_cast<MeowcorderEditor*> (ed.get())->showView (2);
     if (argc > 2 && std::string (argv[2]) == "spec") static_cast<MeowcorderEditor*> (ed.get())->showView (1);
     ed->setVisible (true); ed->setBounds (0, 0, ed->getWidth(), ed->getHeight());
     juce::MessageManager::getInstance()->runDispatchLoopUntil (400);
