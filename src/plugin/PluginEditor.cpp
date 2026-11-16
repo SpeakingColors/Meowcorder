@@ -916,8 +916,8 @@ public:
         juce::AlertWindow::showAsync (juce::MessageBoxOptions().withIconType (juce::MessageBoxIconType::InfoIcon).withTitle ("About Meowcorder").withMessage (
             "Meowcorder " + juce::String (JucePlugin_VersionString) + " by Studio 87\nA free audio recorder and editor.\n\nFree software under the GNU AGPL v3. It works offline: no account, no network, nothing is collected or sent anywhere.\n"
             "The sound you record or open lives inside the plugin while it is open. Save it as a WAV file to keep it.\nSource and manual: github.com/SpeakingColors/Meowcorder\n\n" + juce::String (studio87link::aboutLine()))
-            .withButton ("Support on Ko-fi").withButton (studio87link::buttonText()).withButton ("Close"),
-            [] (int pick) { if (pick == 1) juce::URL ("https://ko-fi.com/studio87").launchInDefaultBrowser(); else if (pick == 2) studio87link::openUpdater ("Meowcorder"); });
+            .withButton ("Support on Ko-fi").withButton (studio87link::buttonText()).withButton (studio87link::githubButtonText()).withButton ("Close"),
+            [] (int pick) { if (pick == 1) juce::URL ("https://ko-fi.com/studio87").launchInDefaultBrowser(); else if (pick == 2) studio87link::openUpdater ("Meowcorder"); else if (pick == 3) studio87link::openGitHub ("Meowcorder"); });
     }
 
     bool keyPressed (const juce::KeyPress& k) override
