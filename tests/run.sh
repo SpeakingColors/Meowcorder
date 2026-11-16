@@ -10,3 +10,6 @@ node ../tools/spectral_test.js
 
 # New v4 DSP: resample, vocoder, pitch, warp, notes, tempo, history, pencils
 node ../tools/dsp_test.js
+
+# Studio 87 Gear Updater link (product id and link string)
+(cd .. && g++ -std=c++17 -O2 -Wall -Wextra -o /tmp/s87_link_test tests/test_updater_link.cpp && /tmp/s87_link_test) || exit 1
