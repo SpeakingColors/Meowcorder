@@ -289,8 +289,22 @@ static void testDsp()
     CHECK (near (zcFreq (std::vector<float> (rg.ch[0].begin() + 30000, rg.ch[0].begin() + 42000), sr), 440, 6) && near (zcFreq (std::vector<float> (rg.ch[0].begin() + 2000, rg.ch[0].begin() + 20000), sr), 220, 2));
 }
 
+static void testPen()
+{
+    mc::Editor e; e.audio.sr = 48000.0; e.audio.resize (100);
+    CHECK (e.beginPen());
+    e.pen (0, 10, 0.f, 20, 1.f);                                   // a ramp: every sample between is set, none outside
+    CHECK (std::fabs (e.audio.ch[0][15] - 0.5f) < 1e-6f); CHECK (e.audio.ch[0][9] == 0.f && e.audio.ch[0][21] == 0.f); CHECK (e.audio.ch[1][15] == 0.f);
+    e.pen (0, 20, 1.f, 12, -3.f);                                  // backwards, and past full scale: clamped
+    CHECK (e.audio.ch[0][12] == -1.f); CHECK (e.audio.ch[0][20] == 1.f);
+    e.pen (1, -50, 0.5f, 500, 0.5f);                               // far outside the sound: no crash, only real samples change
+    CHECK (e.audio.ch[1][0] == 0.5f && e.audio.ch[1][99] == 0.5f);
+    e.undo (); CHECK (e.audio.peak (0, 100) == 0.f);               // the whole stroke is one undo step
+    mc::Editor empty; CHECK (! empty.beginPen()); empty.pen (0, 0, 1.f, 5, 1.f);
+}
+
 int main()
 {
-    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo(); testSpectral(); testDsp();
+    testTable(); testAudio(); testWav(); testOps(); testEditor(); testRecorder(); testAnalysis(); testHistoryAndTempo(); testSpectral(); testDsp(); testPen();
     std::printf ("%d checks, %d failed\n", checks, failed); return failed ? 1 : 0;
 }

@@ -690,6 +690,20 @@ public:
     bool spectralCopy (const SRegion& r) { return mc::spectralCopy (audio, r, sclip); }
     bool spectralPaste (double atFrame, double destHz) { if (sclip.nf <= 0 || audio.frames() == 0) return false; pushUndo ("Spectral paste"); return mc::spectralPaste (audio, sclip, atFrame, destHz); }
     // Runs a change of the sound as one undo step, for the DSP that lives in MeowDsp.h (warp, pitch shift). fn (Audio&) may also move selA and selB.
+    // Waveform pencil: one stroke is one history step. beginPen() once, then pen() for every mouse move, with the last point and the new one.
+    // Samples between the two points are set on a straight line (so a fast drag leaves no gaps), values stay inside -1..1.
+    bool beginPen() { if (audio.frames() == 0) return false; pushUndo ("Pencil"); return true; }
+    void pen (int ch, double f0, float v0, double f1, float v1)
+    {
+        const size_t n = audio.frames(); if (n == 0 || ch < 0 || ch > 1) return;
+        if (f1 < f0) { std::swap (f0, f1); std::swap (v0, v1); }
+        const long a = std::max (0l, (long) std::floor (f0 + 0.5)), b = std::min ((long) n - 1, (long) std::floor (f1 + 0.5));
+        for (long i = a; i <= b; ++i)
+        {
+            const double t = f1 > f0 ? ((double) i - f0) / (f1 - f0) : 0.0;
+            audio.ch[ch][(size_t) i] = std::max (-1.f, std::min (1.f, (float) (v0 + (v1 - v0) * std::min (1.0, std::max (0.0, t)))));
+        }
+    }
     template <class Fn> bool transform (const char* label, Fn fn) { if (audio.frames() == 0) return false; pushUndo (label); fn (audio); return true; }
     bool hasSpectralClip() const { return sclip.nf > 0; }
     double spectralClipHz() const { return sclip.fc; }

@@ -14,7 +14,7 @@ Plugin builds so far: the engine is done (pure C++, 619 passing checks) and the 
 
 What works in the plugin today: record from the track or input (start now, on input or after a four click count-in, pre-roll, grab the last seconds heard, mono or stereo takes), waveform with selection and zoom, spectral view with the Mouse, Select, Scissors, Cutter, Copy, Paste and Amp tools, pitch view (piano roll: drag a note to change its pitch), warp and transpose (stretch, repitch, beats, texture, formants), undo and redo with a history list to jump to any step, cut, copy, paste, delete, crop, snap to zero, all 24 operations with their settings and a Preview button, play and loop, open (WAV, AIFF, FLAC, OGG) and save as WAV (16, 24 or 32 bit float), drop a file on the window, resizable window.
 
-Not in this build yet (the buttons are there, greyed out): host tempo sync, the pencil tools, the spectral eraser and pencil, and the overlay and split views. The tempo of a sound is detected and shown.
+Not in this build yet (the buttons are there, greyed out): host tempo sync, the spectral eraser and pencil, and the overlay and split views. The waveform pencil works (Shift+Q): zoom in until you see single samples, then drag over the wave; one stroke is one undo step. The tempo of a sound is detected and shown.
 
 ## What the finished window does (mockup)
 - Its own Edison-style history: undo, redo, repeat the last operation (Ctrl+Shift+Z), and jump to any step. Separate from your DAW.

@@ -204,6 +204,9 @@ class WaveView : public juce::Component
 public:
     WaveView (MeowcorderProcessor& p, std::function<void()> changed) : proc (p), onChange (std::move (changed)) {}
     int unit = 0; bool snapZero = false; std::function<void()> onZoom;
+    // Pencil: draws single samples. Only works zoomed in far enough that one sample is at least half a pixel wide.
+    bool pen = false;
+    bool penUsable() const { return viewLen / std::max (1, getWidth()) <= 2.0; }
 
     double viewStart = 0, viewLen = 0;
     double frames() const { return (double) proc.ed.audio.frames(); }
@@ -252,11 +255,13 @@ public:
             g.setColour (kPink.withAlpha (0.16f)); g.fillRect (x0, 0, std::max (1, x1 - x0), h); g.setColour (kPink); g.drawVerticalLine (x0, 0.f, (float) h); g.drawVerticalLine (x1, 0.f, (float) h);
         }
         else { const int x = xAt ((double) proc.ed.cursor); g.setColour (kInk.withAlpha (0.8f)); g.drawVerticalLine (x, 0.f, (float) h); }
+        if (pen && ! penUsable()) { g.setColour (kYellow); g.setFont (labelFont (16.f, true)); g.drawText ("Pencil: zoom in until you can see single samples, then drag over the wave.", getLocalBounds().removeFromTop (24), juce::Justification::centred); }
         if (proc.isPlaying() || proc.playheadFrames() > 0) { const int x = xAt (proc.playheadFrames()); if (x >= 0 && x < w && proc.isPlaying()) { g.setColour (kYellow); g.drawVerticalLine (x, 0.f, (float) h); } }
     }
     void mouseDown (const juce::MouseEvent& e) override
     {
         if (frames() == 0) return; if (auto* top = getParentComponent()) top->grabKeyboardFocus();
+        if (pen) { if (penUsable() && proc.ed.beginPen()) { penDown = true; penCh = e.y < getHeight() / 2 ? 0 : 1; penFrame = frameAt (e.x); penVal = penValue (e.y); proc.ed.pen (penCh, penFrame, penVal, penFrame, penVal); dirtyPeaks(); } return; }
         const size_t f = (size_t) juce::jlimit (0.0, frames(), frameAt (e.x));
         if (e.mods.isShiftDown() && (proc.ed.hasSelection() || proc.ed.cursor != 0)) { anchor = proc.ed.hasSelection() ? (f < (proc.ed.selA + proc.ed.selB) / 2 ? proc.ed.selB : proc.ed.selA) : proc.ed.cursor; proc.ed.setSelection (anchor, f); }
         else { anchor = f; proc.ed.setCursor (f); if (proc.isPlaying()) proc.setPlayhead ((double) f); }
@@ -265,6 +270,7 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override
     {
         if (frames() == 0) return;
+        if (pen) { if (penDown) { const double f = frameAt (e.x); const float v = penValue (e.y); proc.ed.pen (penCh, penFrame, penVal, f, v); penFrame = f; penVal = v; dirtyPeaks(); } return; }
         if (e.getDistanceFromDragStart() > 3) dragged = true;
         if (! dragged && ! e.mods.isShiftDown()) return;
         const size_t f = (size_t) juce::jlimit (0.0, frames(), frameAt (e.x)); proc.ed.setSelection (anchor, f);
@@ -273,6 +279,7 @@ public:
     }
     void mouseUp (const juce::MouseEvent&) override
     {
+        if (penDown) { penDown = false; proc.audioChanged(); dirtyPeaks(); if (onChange) onChange(); return; }
         if (dragged && snapZero && proc.ed.hasSelection())
         {
             const size_t r = (size_t) std::max (32.0, proc.ed.audio.sr * 0.01); proc.ed.setSelection (proc.ed.snapToZero (proc.ed.selA, r), proc.ed.snapToZero (proc.ed.selB, r));
@@ -287,6 +294,7 @@ public:
         else { viewStart -= (w.deltaX != 0 ? w.deltaX : w.deltaY) * viewLen * 0.5; clampView(); }
     }
 private:
+    float penValue (int y) const { const int laneH = std::max (2, getHeight() / 2), mid = penCh * laneH + laneH / 2; return juce::jlimit (-1.f, 1.f, (float) (mid - y) / ((float) laneH * 0.48f)); }
     void buildPeaks (int w)
     {
         const uint64_t key = proc.version * 1000003ull + (uint64_t) viewStart * 31ull + (uint64_t) viewLen * 17ull + (uint64_t) w;
@@ -304,6 +312,7 @@ private:
         }
     }
     MeowcorderProcessor& proc; std::function<void()> onChange; size_t anchor = 0; bool dragged = false;
+    bool penDown = false; int penCh = 0; double penFrame = 0; float penVal = 0.f;
     std::vector<float> pkMin[2], pkMax[2]; uint64_t cacheKey = ~0ull, transientsKey = ~0ull; std::vector<size_t> trans;
 };
 
@@ -709,7 +718,7 @@ public:
         add ("bRepeat", layout::bRepeat, [this] { doRepeat(); }); add ("bGrab", layout::bGrab, [this] { doGrab(); });
         add ("bMono", layout::bMono, [this] { p.monoTakes = ! p.monoTakes; refresh(); }); add ("bInput", layout::bInput, [] {}); add ("bMon", layout::bMon, [this] { toggleParam ("monitor"); }, kGreen); add ("bSpec", layout::bSpec, [] {});
         for (auto* k : { "bInput", "bSpec" }) { byKey[k]->setActive (false); byKey[k]->setTooltip (juce::String (byKey[k]->getTooltip()).upToFirstOccurrenceOf (":", false, false) + ": " + kSoon); }
-        add ("vComb", layout::vComb, [] {}); add ("vPen", layout::vPen, [] {}); byKey["vComb"]->setActive (false); byKey["vPen"]->setActive (false);
+        add ("vComb", layout::vComb, [] {}); add ("vPen", layout::vPen, [this] { togglePen(); }); byKey["vComb"]->setActive (false);
         {
             const struct { const char* n; layout::R r; } tabs[] = { { "Waveform", layout::tWave }, { "Spectral", { 161, 310, 61, 21 } }, { "Pitch", { 221, 310, 47, 21 } } };
             for (int i = 0; i < 3; ++i)
@@ -820,6 +829,7 @@ public:
     }
     void doUndo() { p.ed.undo(); changed(); } void doRedo() { p.ed.redo(); changed(); }
     void doCut() { p.ed.cut(); changed(); } void doCopy() { p.ed.copy(); refresh(); } void doPaste() { p.ed.paste(); changed(); }
+    void togglePen() { wave.pen = ! wave.pen; wave.repaint(); refresh(); }
     void doDelete() { p.ed.deleteSelection(); changed(); } void doCrop() { p.ed.cropToSelection(); wave.fit(); changed(); }
     void doSelectAll() { p.ed.setSelection (0, p.ed.audio.frames()); refresh(); }
     void doSelectNone() { p.ed.setCursor (p.ed.cursor); refresh(); }
@@ -929,6 +939,7 @@ public:
         if (ctrl && c == 'A') { doSelectAll(); return true; } if (ctrl && c == 'O') { doOpen(); return true; } if (ctrl && c == 'S') { doSave(); return true; }
         if (k == juce::KeyPress::spaceKey) { doPlay(); return true; } if (k == juce::KeyPress::returnKey) { doRecord(); return true; }
         if (k == juce::KeyPress::deleteKey || k == juce::KeyPress::backspaceKey) { doDelete(); return true; }
+        if (mods.isShiftDown() && ! ctrl && c == 'Q') { togglePen(); return true; }
         if (mods.isShiftDown() && ! ctrl)
             for (int o = 0; o < mc::opCount; ++o) { const juce::String sc = layout::kOpMeta[o].shortcut; if (sc.startsWith ("Shift+") && sc.length() == 7 && (int) sc[6] == c) { applyNow (o); return true; } }
         if (! ctrl && ! mods.isShiftDown() && ! mods.isAltDown())
@@ -953,7 +964,7 @@ private:
         on ("bRec", rec); on ("bPlay", p.isPlaying()); on ("bLoop", p.apvts.getRawParameterValue ("loop")->load() > 0.5f); on ("bMon", p.apvts.getRawParameterValue ("monitor")->load() > 0.5f); on ("bSnap", wave.snapZero); on ("bMono", p.monoTakes); act ("bHist", p.ed.historySteps() > 1);
         act ("bUndo", p.ed.canUndo()); act ("bRedo", p.ed.canRedo()); act ("bCut", sel); act ("bCopy", sel); act ("bPaste", p.ed.clipboard().frames() > 0); act ("bDel", sel); act ("bCrop", sel);
         act ("bAll", has); act ("bZin", has); act ("bZout", has); act ("bFit", has); act ("bSel", sel); act ("bRepeat", p.ed.last.op >= 0); act ("bSave", has); act ("bPlay", has);
-        for (int i = 0; i < 3; ++i) segBtns[i]->setOn (p.startSel == i); for (int i = 0; i < 3; ++i) if (tabBtns[i] != nullptr) tabBtns[i]->setOn (viewMode == i); for (size_t i = 0; i < toolBtns.size(); ++i) toolBtns[i]->setOn (spec.tool == (int) i);
+        byKey["vPen"]->setOn (wave.pen); for (int i = 0; i < 3; ++i) segBtns[i]->setOn (p.startSel == i); for (int i = 0; i < 3; ++i) if (tabBtns[i] != nullptr) tabBtns[i]->setOn (viewMode == i); for (size_t i = 0; i < toolBtns.size(); ++i) toolBtns[i]->setOn (spec.tool == (int) i);
         const char* takes[] = { "Replace", "Append", "Punch in", "Insert" }; takeBtn->label = takes[juce::jlimit (0, 3, p.takeMode)]; takeBtn->repaint();
         chips["ch"]->label = "Stereo"; chips["sr"]->label = juce::String (p.ed.audio.sr / 1000.0, p.ed.audio.sr == 44100.0 ? 1 : 0) + " kHz"; chips["bits"]->label = p.exportBits == 32 ? "32 bit float" : juce::String (p.exportBits) + " bit";
         chips["unit"]->label = wave.unit == 0 ? "Time" : wave.unit == 1 ? "Seconds" : "Samples"; if (bpmKey != p.version) { bpmKey = p.version; bpmValue = mc::detectBpm (p.ed.audio); } chips["bpm"]->label = bpmValue > 0.f ? juce::String (bpmValue, 1) + " bpm" : juce::String ("no tempo"); chips["sync"]->label = "Free"; chips["warp"]->label = "Warp >";
